@@ -38,8 +38,11 @@ namespace DevOpsProject.HiveMind.Logic.Services
             return isNew;
         }
 
-        public bool RemoveDrone(Guid droneId)
+        public bool RemoveDrone(string droneId)
         {
+            // Remove from hive first
+            HiveInMemoryState.RemoveDroneFromHive(droneId);
+            
             var removed = HiveInMemoryState.RemoveDrone(droneId);
             if (removed)
             {
@@ -53,12 +56,12 @@ namespace DevOpsProject.HiveMind.Logic.Services
             return removed;
         }
 
-        public DroneConnectionAnalysisResponse AnalyzeConnection(Guid droneId, double minimumWeight = 0.5)
+        public DroneConnectionAnalysisResponse AnalyzeConnection(string droneId, double minimumWeight = 0.5)
         {
             var response = new DroneConnectionAnalysisResponse
             {
                 TargetDroneId = droneId,
-                Path = Array.Empty<Guid>(),
+                Path = Array.Empty<string>(),
                 MinimumLinkWeight = 0
             };
 
@@ -82,10 +85,10 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 return response;
             }
 
-            var parents = new Dictionary<Guid, Guid>();
-            var minWeightTracker = new Dictionary<Guid, double>();
-            var visited = new HashSet<Guid>();
-            var queue = new Queue<Guid>();
+            var parents = new Dictionary<string, string>();
+            var minWeightTracker = new Dictionary<string, double>();
+            var visited = new HashSet<string>();
+            var queue = new Queue<string>();
             var adjacency = swarm.ToDictionary(d => d.Id, d => d.Connections ?? new List<DroneConnection>());
 
             foreach (var relayId in relayEntryPoints)
@@ -134,9 +137,9 @@ namespace DevOpsProject.HiveMind.Logic.Services
             return response;
         }
 
-        private static IReadOnlyCollection<Guid> BuildPath(Guid targetDroneId, IReadOnlyDictionary<Guid, Guid> parents)
+        private static IReadOnlyCollection<string> BuildPath(string targetDroneId, IReadOnlyDictionary<string, string> parents)
         {
-            var path = new List<Guid>();
+            var path = new List<string>();
             var current = targetDroneId;
             path.Add(current);
 

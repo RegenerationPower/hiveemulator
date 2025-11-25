@@ -4,9 +4,13 @@ using DevOpsProject.HiveMind.API.DI;
 using DevOpsProject.HiveMind.API.Middleware;
 using DevOpsProject.HiveMind.Logic.Patterns.Factory.Interfaces;
 using DevOpsProject.HiveMind.Logic.Services.Interfaces;
+using DevOpsProject.HiveMind.Logic.State;
 using DevOpsProject.Shared.Configuration;
+using DevOpsProject.Shared.Enums;
 using DevOpsProject.Shared.Models;
+using DevOpsProject.Shared.Models.Commands.Drone;
 using DevOpsProject.Shared.Models.Commands.HiveMind;
+using DevOpsProject.Shared.Models.DTO.hive;
 using Microsoft.AspNetCore.Mvc;
 using FluentValidation;
 using Microsoft.Extensions.Options;
@@ -119,16 +123,149 @@ groupBuilder.MapPut("drones", ([FromBody] Drone drone, [FromServices] IDroneRela
     }
 });
 
-groupBuilder.MapDelete("drones/{droneId:guid}", (Guid droneId, [FromServices] IDroneRelayService relayService) =>
+groupBuilder.MapDelete("drones/{droneId}", (string droneId, [FromServices] IDroneRelayService relayService) =>
 {
     var removed = relayService.RemoveDrone(droneId);
     return removed ? Results.NoContent() : Results.NotFound();
 });
 
-groupBuilder.MapGet("drones/{droneId:guid}/analysis", (Guid droneId, [FromQuery] double? minWeight, [FromServices] IDroneRelayService relayService) =>
+groupBuilder.MapGet("drones/{droneId}/analysis", (string droneId, [FromQuery] double? minWeight, [FromServices] IDroneRelayService relayService) =>
 {
     var analysis = relayService.AnalyzeConnection(droneId, minWeight ?? 0.5);
     return Results.Ok(analysis);
+});
+
+// Hive management endpoints
+groupBuilder.MapPost("hives", ([FromBody] HiveCreateRequest request, [FromServices] IHiveService hiveService) =>
+{
+    if (request == null || string.IsNullOrWhiteSpace(request.HiveId))
+    {
+        return Results.BadRequest(new { message = "Hive ID is required" });
+    }
+
+    try
+    {
+        var hive = hiveService.CreateHive(request.HiveId, request.Name);
+        return Results.Created($"/api/v1/hives/{hive.Id}", hive);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Conflict(new { message = ex.Message });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { message = ex.Message });
+    }
+});
+
+groupBuilder.MapGet("hives", ([FromServices] IHiveService hiveService) =>
+{
+    var hives = hiveService.GetAllHives();
+    return Results.Ok(new { hives, count = hives.Count });
+});
+
+groupBuilder.MapGet("hives/{hiveId}", (string hiveId, [FromServices] IHiveService hiveService) =>
+{
+    var hive = hiveService.GetHive(hiveId);
+    if (hive == null)
+    {
+        return Results.NotFound(new { message = $"Hive {hiveId} not found" });
+    }
+    return Results.Ok(hive);
+});
+
+groupBuilder.MapDelete("hives/{hiveId}", (string hiveId, [FromServices] IHiveService hiveService) =>
+{
+    var deleted = hiveService.DeleteHive(hiveId);
+    return deleted ? Results.NoContent() : Results.NotFound(new { message = $"Hive {hiveId} not found" });
+});
+
+groupBuilder.MapGet("hives/{hiveId}/drones", (string hiveId, [FromServices] IDroneCommandService commandService) =>
+{
+    var drones = commandService.GetHiveDrones(hiveId);
+    return Results.Ok(new { hiveId, drones, count = drones.Count });
+});
+
+// Drone communication endpoints within Hive context
+groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/join", (string hiveId, string droneId, [FromBody] DroneJoinRequest request, [FromServices] IDroneCommandService commandService) =>
+{
+    var joinRequest = request ?? new DroneJoinRequest { DroneId = droneId };
+    if (string.IsNullOrWhiteSpace(joinRequest.DroneId))
+    {
+        joinRequest.DroneId = droneId;
+    }
+    
+    var response = commandService.JoinDrone(hiveId, joinRequest);
+    return response.Success ? Results.Ok(response) : Results.BadRequest(response);
+});
+
+groupBuilder.MapGet("hives/{hiveId}/drones/{droneId}/connected", (string hiveId, string droneId, [FromServices] IDroneCommandService commandService) =>
+{
+    var connectedDrones = commandService.GetConnectedDrones(hiveId, droneId);
+    return Results.Ok(new { hiveId, droneId, connectedDrones, count = connectedDrones.Count });
+});
+
+// Drone command endpoints (direct to drone, not through Hive)
+groupBuilder.MapGet("drones/{droneId}/commands", (string droneId, [FromServices] IDroneCommandService commandService) =>
+{
+    var commands = commandService.GetAllCommands(droneId);
+    if (!commands.Any())
+    {
+        return Results.NoContent();
+    }
+    
+    // Return commands with numbering (index starting from 1)
+    var numberedCommands = commands.Select((cmd, index) => new
+    {
+        order = index + 1,
+        command = cmd
+    }).ToList();
+    
+    return Results.Ok(new
+    {
+        droneId = droneId,
+        totalCommands = commands.Count,
+        commands = numberedCommands
+    });
+});
+
+groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] DroneCommand command, [FromServices] IDroneCommandService commandService) =>
+{
+    if (command == null)
+    {
+        return Results.BadRequest(new { message = "Command cannot be null" });
+    }
+    
+    // Check if drone exists
+    var drone = HiveInMemoryState.GetDrone(droneId);
+    if (drone == null)
+    {
+        return Results.NotFound(new { message = $"Drone {droneId} not found. Cannot send command to non-existent drone." });
+    }
+    
+    // Set target drone ID from URL
+    command.TargetDroneId = droneId;
+    
+    // Auto-generate timestamp if not provided
+    if (command.Timestamp == default)
+    {
+        command.Timestamp = DateTime.UtcNow;
+    }
+    
+    // Auto-generate command ID if not provided
+    if (command.CommandId == Guid.Empty)
+    {
+        command.CommandId = Guid.NewGuid();
+    }
+    
+    // Set commandPayload to null for commands that don't need it
+    if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)
+    {
+        command.CommandPayload = null;
+    }
+    
+    commandService.SendCommand(command);
+    return Results.Created($"/api/v1/drones/{droneId}/commands/{command.CommandId}", command);
 });
 
 app.Run();

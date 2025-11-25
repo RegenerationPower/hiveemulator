@@ -4,14 +4,14 @@ namespace DevOpsProject.Shared.Models
 {
     public class Drone
     {
-        public Guid Id { get; set; }
+        public string Id { get; set; }
         public DroneType Type { get; set; }
         public List<DroneConnection> Connections { get; set; } = new();
     }
 
     public class DroneConnection
     {
-        public Guid TargetDroneId { get; set; }
+        public string TargetDroneId { get; set; }
         public double Weight { get; set; }
     }
 }

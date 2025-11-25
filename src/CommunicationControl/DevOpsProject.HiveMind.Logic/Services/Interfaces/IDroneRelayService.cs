@@ -7,8 +7,8 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
     {
         IReadOnlyCollection<Drone> GetSwarm();
         bool UpsertDrone(Drone drone);
-        bool RemoveDrone(Guid droneId);
-        DroneConnectionAnalysisResponse AnalyzeConnection(Guid droneId, double minimumWeight = 0.5);
+        bool RemoveDrone(string droneId);
+        DroneConnectionAnalysisResponse AnalyzeConnection(string droneId, double minimumWeight = 0.5);
     }
 }
 

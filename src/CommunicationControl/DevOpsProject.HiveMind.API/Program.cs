@@ -210,6 +210,41 @@ groupBuilder.MapGet("hives/{hiveId}/drones/{droneId}/connected", (string hiveId,
     return Results.Ok(new { hiveId, droneId, connectedDrones, count = connectedDrones.Count });
 });
 
+// Topology management endpoints
+groupBuilder.MapPost("hives/{hiveId}/topology/rebuild", (string hiveId, [FromBody] TopologyRebuildRequest request, [FromServices] IDroneRelayService relayService) =>
+{
+    if (request == null)
+    {
+        return Results.BadRequest(new { message = "Request cannot be null" });
+    }
+
+    // Use hiveId from URL
+    request.HiveId = hiveId;
+
+    var response = relayService.RebuildTopology(request);
+    return response.Success ? Results.Ok(response) : Results.BadRequest(response);
+});
+
+groupBuilder.MapPost("hives/{hiveId}/topology/connect-hivemind", (string hiveId, [FromBody] ConnectToHiveMindRequest request, [FromServices] IDroneRelayService relayService) =>
+{
+    if (request == null)
+    {
+        return Results.BadRequest(new { message = "Request cannot be null" });
+    }
+
+    // Use hiveId from URL
+    request.HiveId = hiveId;
+
+    var response = relayService.ConnectToHiveMind(request);
+    return response.Success ? Results.Ok(response) : Results.BadRequest(response);
+});
+
+groupBuilder.MapGet("hives/{hiveId}/topology/connectivity", (string hiveId, [FromServices] IDroneRelayService relayService) =>
+{
+    var response = relayService.AnalyzeSwarmConnectivity(hiveId);
+    return Results.Ok(response);
+});
+
 // Mesh command endpoint - send command through mesh network (only for drones in Hive)
 groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/commands/mesh", (string hiveId, string droneId, [FromBody] DroneCommand command, [FromQuery] double? minWeight, [FromServices] IDroneRelayService relayService) =>
 {

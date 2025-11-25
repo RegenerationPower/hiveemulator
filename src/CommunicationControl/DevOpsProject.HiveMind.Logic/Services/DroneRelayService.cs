@@ -233,6 +233,391 @@ namespace DevOpsProject.HiveMind.Logic.Services
             return response;
         }
 
+        public TopologyRebuildResponse RebuildTopology(TopologyRebuildRequest request)
+        {
+            var response = new TopologyRebuildResponse
+            {
+                HiveId = request.HiveId,
+                TopologyType = request.TopologyType,
+                Success = false
+            };
+
+            // Check if Hive exists
+            var hive = HiveInMemoryState.GetHive(request.HiveId);
+            if (hive == null)
+            {
+                response.ErrorMessage = $"Hive {request.HiveId} not found.";
+                return response;
+            }
+
+            // Get all drones in the Hive
+            var hiveDrones = HiveInMemoryState.GetHiveDrones(request.HiveId).ToList();
+            if (hiveDrones.Count < 2)
+            {
+                response.ErrorMessage = $"Hive {request.HiveId} has less than 2 drones. Cannot build topology.";
+                return response;
+            }
+
+            var swarm = HiveInMemoryState.Drones;
+            var dronesInHive = swarm.Where(d => hiveDrones.Contains(d.Id)).ToList();
+
+            int connectionsCreated = 0;
+            int connectionsRemoved = 0;
+
+            switch (request.TopologyType.ToLower())
+            {
+                case "mesh":
+                    // Full mesh: every drone connects to every other drone
+                    connectionsRemoved = RemoveAllConnections(dronesInHive);
+                    connectionsCreated = CreateFullMeshTopology(dronesInHive, request.DefaultWeight);
+                    break;
+
+                case "star":
+                    // Star topology: one central hub (prefer Relay drone)
+                    var hub = dronesInHive.FirstOrDefault(d => d.Type == DroneType.Relay) 
+                             ?? dronesInHive.First();
+                    connectionsRemoved = RemoveAllConnections(dronesInHive);
+                    connectionsCreated = CreateStarTopology(dronesInHive, hub.Id, request.DefaultWeight);
+                    break;
+
+                case "dual_star":
+                    // Dual-star: two hubs, each drone connects to both
+                    var relays = dronesInHive.Where(d => d.Type == DroneType.Relay).Take(2).ToList();
+                    if (relays.Count < 2 && dronesInHive.Count >= 2)
+                    {
+                        // Use first two drones if not enough relays
+                        relays = dronesInHive.Take(2).ToList();
+                    }
+                    if (relays.Count < 2)
+                    {
+                        response.ErrorMessage = "Dual-star topology requires at least 2 drones.";
+                        return response;
+                    }
+                    connectionsRemoved = RemoveAllConnections(dronesInHive);
+                    connectionsCreated = CreateDualStarTopology(dronesInHive, relays[0].Id, relays[1].Id, request.DefaultWeight);
+                    break;
+
+                default:
+                    response.ErrorMessage = $"Unknown topology type: {request.TopologyType}. Supported: mesh, star, dual_star";
+                    return response;
+            }
+
+            response.Success = true;
+            response.ConnectionsCreated = connectionsCreated;
+            response.ConnectionsRemoved = connectionsRemoved;
+            _logger.LogInformation("Topology rebuilt for Hive {HiveId}: {TopologyType}, {Created} created, {Removed} removed",
+                request.HiveId, request.TopologyType, connectionsCreated, connectionsRemoved);
+
+            return response;
+        }
+
+        public TopologyRebuildResponse ConnectToHiveMind(ConnectToHiveMindRequest request)
+        {
+            var response = new TopologyRebuildResponse
+            {
+                HiveId = request.HiveId,
+                TopologyType = request.TopologyType,
+                Success = false
+            };
+
+            // Check if Hive exists
+            var hive = HiveInMemoryState.GetHive(request.HiveId);
+            if (hive == null)
+            {
+                response.ErrorMessage = $"Hive {request.HiveId} not found.";
+                return response;
+            }
+
+            // Get all drones in the Hive
+            var hiveDrones = HiveInMemoryState.GetHiveDrones(request.HiveId).ToList();
+            if (!hiveDrones.Any())
+            {
+                response.ErrorMessage = $"Hive {request.HiveId} has no drones.";
+                return response;
+            }
+
+            var swarm = HiveInMemoryState.Drones;
+            var dronesInHive = swarm.Where(d => hiveDrones.Contains(d.Id)).ToList();
+
+            // Find relay drones (entry points to HiveMind)
+            var relayDrones = swarm.Where(d => d.Type == DroneType.Relay).ToList();
+            if (!relayDrones.Any())
+            {
+                response.ErrorMessage = "No relay drones found. Cannot connect to HiveMind.";
+                return response;
+            }
+
+            int connectionsCreated = 0;
+
+            switch (request.TopologyType.ToLower())
+            {
+                case "star":
+                    // Connect all drones to one relay drone
+                    var hub = request.HubDroneIds?.FirstOrDefault() != null
+                        ? relayDrones.FirstOrDefault(d => d.Id == request.HubDroneIds[0])
+                        : relayDrones.First();
+                    
+                    if (hub == null)
+                    {
+                        response.ErrorMessage = "Specified hub drone not found or is not a relay.";
+                        return response;
+                    }
+
+                    connectionsCreated = ConnectDronesToHub(dronesInHive, hub.Id, request.ConnectionWeight);
+                    break;
+
+                case "dual_star":
+                    // Connect all drones to two relay drones
+                    var hubs = new List<Drone>();
+                    if (request.HubDroneIds != null && request.HubDroneIds.Count >= 2)
+                    {
+                        hubs = relayDrones.Where(d => request.HubDroneIds.Contains(d.Id)).Take(2).ToList();
+                    }
+                    else
+                    {
+                        hubs = relayDrones.Take(2).ToList();
+                    }
+
+                    if (hubs.Count < 2)
+                    {
+                        response.ErrorMessage = "Dual-star topology requires at least 2 relay drones.";
+                        return response;
+                    }
+
+                    connectionsCreated = ConnectDronesToDualHub(dronesInHive, hubs[0].Id, hubs[1].Id, request.ConnectionWeight);
+                    break;
+
+                default:
+                    response.ErrorMessage = $"Unknown topology type: {request.TopologyType}. Supported: star, dual_star";
+                    return response;
+            }
+
+            response.Success = true;
+            response.ConnectionsCreated = connectionsCreated;
+            _logger.LogInformation("Connected {Count} drones to HiveMind using {TopologyType} topology",
+                dronesInHive.Count, request.TopologyType);
+
+            return response;
+        }
+
+        public SwarmConnectivityResponse AnalyzeSwarmConnectivity(string hiveId)
+        {
+            var response = new SwarmConnectivityResponse
+            {
+                HiveId = hiveId,
+                IsFullyConnected = false,
+                ConnectedComponents = 0
+            };
+
+            // Check if Hive exists
+            var hive = HiveInMemoryState.GetHive(hiveId);
+            if (hive == null)
+            {
+                return response;
+            }
+
+            // Get all drones in the Hive
+            var hiveDrones = HiveInMemoryState.GetHiveDrones(hiveId).ToList();
+            if (!hiveDrones.Any())
+            {
+                response.TotalDrones = 0;
+                return response;
+            }
+
+            response.TotalDrones = hiveDrones.Count;
+
+            var swarm = HiveInMemoryState.Drones;
+            var dronesInHive = swarm.Where(d => hiveDrones.Contains(d.Id)).ToList();
+
+            // Build adjacency list
+            var adjacency = new Dictionary<string, List<string>>();
+            foreach (var drone in dronesInHive)
+            {
+                adjacency[drone.Id] = new List<string>();
+                foreach (var connection in drone.Connections)
+                {
+                    if (hiveDrones.Contains(connection.TargetDroneId))
+                    {
+                        adjacency[drone.Id].Add(connection.TargetDroneId);
+                    }
+                }
+            }
+
+            // Find connected components using BFS
+            var visited = new HashSet<string>();
+            var components = new List<List<string>>();
+
+            foreach (var drone in dronesInHive)
+            {
+                if (visited.Contains(drone.Id))
+                    continue;
+
+                var component = new List<string>();
+                var queue = new Queue<string>();
+                queue.Enqueue(drone.Id);
+                visited.Add(drone.Id);
+
+                while (queue.Count > 0)
+                {
+                    var current = queue.Dequeue();
+                    component.Add(current);
+
+                    if (adjacency.TryGetValue(current, out var neighbors))
+                    {
+                        foreach (var neighbor in neighbors)
+                        {
+                            if (visited.Add(neighbor))
+                            {
+                                queue.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                }
+
+                components.Add(component);
+            }
+
+            response.ConnectedComponents = components.Count;
+            response.IsFullyConnected = components.Count == 1;
+            response.LargestComponentSize = components.Any() ? components.Max(c => c.Count) : 0;
+            response.IsolatedGroups = components.Where(c => c.Count < response.TotalDrones).Select(c => (IReadOnlyCollection<string>)c.ToList()).ToList();
+
+            return response;
+        }
+
+        #region Private Helper Methods
+
+        private int RemoveAllConnections(List<Drone> drones)
+        {
+            int removed = 0;
+            foreach (var drone in drones)
+            {
+                var originalDrone = HiveInMemoryState.GetDrone(drone.Id);
+                if (originalDrone != null && originalDrone.Connections.Any())
+                {
+                    removed += originalDrone.Connections.Count;
+                    originalDrone.Connections.Clear();
+                    HiveInMemoryState.UpsertDrone(originalDrone);
+                }
+            }
+            return removed;
+        }
+
+        private int CreateFullMeshTopology(List<Drone> drones, double weight)
+        {
+            int created = 0;
+            for (int i = 0; i < drones.Count; i++)
+            {
+                for (int j = i + 1; j < drones.Count; j++)
+                {
+                    AddConnection(drones[i].Id, drones[j].Id, weight);
+                    AddConnection(drones[j].Id, drones[i].Id, weight);
+                    created += 2;
+                }
+            }
+            return created;
+        }
+
+        private int CreateStarTopology(List<Drone> drones, string hubId, double weight)
+        {
+            int created = 0;
+            foreach (var drone in drones)
+            {
+                if (drone.Id != hubId)
+                {
+                    AddConnection(drone.Id, hubId, weight);
+                    AddConnection(hubId, drone.Id, weight);
+                    created += 2;
+                }
+            }
+            return created;
+        }
+
+        private int CreateDualStarTopology(List<Drone> drones, string hub1Id, string hub2Id, double weight)
+        {
+            int created = 0;
+            // Connect hubs to each other
+            AddConnection(hub1Id, hub2Id, weight);
+            AddConnection(hub2Id, hub1Id, weight);
+            created += 2;
+
+            // Connect all other drones to both hubs
+            foreach (var drone in drones)
+            {
+                if (drone.Id != hub1Id && drone.Id != hub2Id)
+                {
+                    AddConnection(drone.Id, hub1Id, weight);
+                    AddConnection(hub1Id, drone.Id, weight);
+                    AddConnection(drone.Id, hub2Id, weight);
+                    AddConnection(hub2Id, drone.Id, weight);
+                    created += 4;
+                }
+            }
+            return created;
+        }
+
+        private int ConnectDronesToHub(List<Drone> drones, string hubId, double weight)
+        {
+            int created = 0;
+            foreach (var drone in drones)
+            {
+                if (drone.Id != hubId)
+                {
+                    AddConnection(drone.Id, hubId, weight);
+                    AddConnection(hubId, drone.Id, weight);
+                    created += 2;
+                }
+            }
+            return created;
+        }
+
+        private int ConnectDronesToDualHub(List<Drone> drones, string hub1Id, string hub2Id, double weight)
+        {
+            int created = 0;
+            // Connect hubs to each other
+            AddConnection(hub1Id, hub2Id, weight);
+            AddConnection(hub2Id, hub1Id, weight);
+            created += 2;
+
+            // Connect all drones to both hubs
+            foreach (var drone in drones)
+            {
+                if (drone.Id != hub1Id && drone.Id != hub2Id)
+                {
+                    AddConnection(drone.Id, hub1Id, weight);
+                    AddConnection(hub1Id, drone.Id, weight);
+                    AddConnection(drone.Id, hub2Id, weight);
+                    AddConnection(hub2Id, drone.Id, weight);
+                    created += 4;
+                }
+            }
+            return created;
+        }
+
+        private void AddConnection(string fromDroneId, string toDroneId, double weight)
+        {
+            var drone = HiveInMemoryState.GetDrone(fromDroneId);
+            if (drone == null)
+                return;
+
+            // Check if connection already exists
+            var existingConnection = drone.Connections.FirstOrDefault(c => c.TargetDroneId == toDroneId);
+            if (existingConnection != null)
+            {
+                existingConnection.Weight = weight;
+            }
+            else
+            {
+                drone.Connections.Add(new DroneConnection
+                {
+                    TargetDroneId = toDroneId,
+                    Weight = weight
+                });
+            }
+
+            HiveInMemoryState.UpsertDrone(drone);
+        }
+
         private static IReadOnlyCollection<string> BuildPath(string targetDroneId, IReadOnlyDictionary<string, string> parents)
         {
             var path = new List<string>();
@@ -248,6 +633,8 @@ namespace DevOpsProject.HiveMind.Logic.Services
             path.Reverse();
             return path;
         }
+
+        #endregion
     }
 }
 

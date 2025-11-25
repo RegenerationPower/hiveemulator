@@ -43,10 +43,13 @@ namespace DevOpsProject.HiveMind.Logic.Services
             // Remove from hive first
             HiveInMemoryState.RemoveDroneFromHive(droneId);
             
+            // Remove all commands for this drone (completely remove from dictionary)
+            HiveInMemoryState.RemoveDroneCommands(droneId);
+            
             var removed = HiveInMemoryState.RemoveDrone(droneId);
             if (removed)
             {
-                _logger.LogInformation("Drone {DroneId} removed from swarm.", droneId);
+                _logger.LogInformation("Drone {DroneId} removed from swarm, hive, and all commands deleted.", droneId);
             }
             else
             {

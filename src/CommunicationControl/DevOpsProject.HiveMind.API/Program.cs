@@ -88,20 +88,25 @@ ApiVersionSet apiVersionSet = app.NewApiVersionSet()
     .Build();
 RouteGroupBuilder groupBuilder = app.MapGroup("api/v{apiVersion:apiVersion}").WithApiVersionSet(apiVersionSet);
 
-groupBuilder.MapGet("ping", (IOptionsSnapshot<HiveCommunicationConfig> config) =>
+// Ping endpoint
+groupBuilder.MapGet("ping", ([FromQuery] DateTime? timestamp, [FromQuery] string? hiveID, IOptionsSnapshot<HiveCommunicationConfig> config) =>
 {
-    return Results.Ok(new
+    var response = new PingResponse
     {
-        Timestamp = DateTime.Now,
-        ID = config.Value.HiveID
-    });
+        Status = "OK",
+        Timestamp = DateTime.UtcNow
+    };
+    return Results.Ok(response);
 });
 
-groupBuilder.MapPost("command", async (HiveMindCommand command, [FromServices]ICommandHandlerFactory factory) =>
+groupBuilder.MapPost("command", async (HiveMindCommand command, [FromServices]ICommandHandlerFactory factory, [FromServices]IHiveMindService hiveMindService) =>
 {
     var handler = factory.GetHandler(command);
     await handler.HandleAsync(command);
-    return Results.Ok();
+    
+    // Return HiveMind telemetry as response
+    var telemetry = hiveMindService.GetCurrentTelemetry();
+    return Results.Ok(telemetry);
 });
 
 groupBuilder.MapGet("drones", ([FromServices] IDroneRelayService relayService) =>
@@ -269,11 +274,8 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
         command.Timestamp = DateTime.UtcNow;
     }
     
-    // Auto-generate command ID if not provided
-    if (command.CommandId == Guid.Empty)
-    {
-        command.CommandId = Guid.NewGuid();
-    }
+    // Always auto-generate command ID (ignore any provided value)
+    command.CommandId = Guid.NewGuid();
     
     // Set commandPayload to null for commands that don't need it
     if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)
@@ -306,11 +308,8 @@ groupBuilder.MapPost("hives/{hiveId}/commands", (string hiveId, [FromBody] Drone
         command.Timestamp = DateTime.UtcNow;
     }
     
-    // Auto-generate command ID if not provided
-    if (command.CommandId == Guid.Empty)
-    {
-        command.CommandId = Guid.NewGuid();
-    }
+    // Always auto-generate command ID (ignore any provided value)
+    command.CommandId = Guid.NewGuid();
     
     // Set commandPayload to null for commands that don't need it
     if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)

@@ -60,6 +60,12 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 
 3. Communication Control Swagger: http://localhost:8080
 
+### HiveMind Drone Relay API
+- `GET /api/v1/drones` – list the drones currently registered in the HiveMind swarm cache.
+- `PUT /api/v1/drones` – register or update a drone payload with its type (Scout/Striker/Relay) and weighted connections.
+- `DELETE /api/v1/drones/{droneId}` – remove a drone from the swarm graph.
+- `GET /api/v1/drones/{droneId}/analysis?minWeight=0.5` – evaluate whether HiveMind can reach a drone through relay links that meet the specified minimum connection weight (defaults to `0.5`).
+
 ## Build
 
 ### Map Clinet

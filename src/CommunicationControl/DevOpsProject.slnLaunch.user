@@ -1,0 +1,19 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "DevOpsProject\\DevOpsProject.CommunicationControl.API.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "DevOpsProject.Example.MessageListener\\DevOpsProject.Example.MessageListener.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "DevOpsProject.HiveMind.API\\DevOpsProject.HiveMind.API.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

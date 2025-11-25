@@ -2,6 +2,7 @@
 using DevOpsProject.HiveMind.Logic.Services.Interfaces;
 using DevOpsProject.HiveMind.Logic.State;
 using DevOpsProject.Shared.Configuration;
+using DevOpsProject.Shared.Enums;
 using DevOpsProject.Shared.Models;
 using DevOpsProject.Shared.Models.Commands.Drone;
 using DevOpsProject.Shared.Models.DTO.hive;
@@ -150,6 +151,14 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
         public DroneCommand? GetNextCommand(string droneId)
         {
+            // Check if drone is in a Hive
+            var hiveId = HiveInMemoryState.GetDroneHive(droneId);
+            if (hiveId != null)
+            {
+                _logger.LogWarning("Drone {DroneId} is in Hive {HiveId} and cannot retrieve individual commands.", droneId, hiveId);
+                return null;
+            }
+
             var command = HiveInMemoryState.GetNextDroneCommand(droneId);
             if (command != null)
             {
@@ -162,7 +171,15 @@ namespace DevOpsProject.HiveMind.Logic.Services
         public IReadOnlyCollection<DroneCommand> GetAllCommands(string droneId)
         {
             var commands = HiveInMemoryState.GetAllDroneCommands(droneId);
-            _logger.LogInformation("Drone {DroneId} requested all commands. Found {Count} commands.", droneId, commands.Count);
+            var hiveId = HiveInMemoryState.GetDroneHive(droneId);
+            if (hiveId != null)
+            {
+                _logger.LogInformation("Drone {DroneId} in Hive {HiveId} requested all commands. Found {Count} commands.", droneId, hiveId, commands.Count);
+            }
+            else
+            {
+                _logger.LogInformation("Drone {DroneId} requested all commands. Found {Count} commands.", droneId, commands.Count);
+            }
             return commands;
         }
 
@@ -187,6 +204,15 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 return;
             }
 
+            // Check if drone is in a Hive
+            var hiveId = HiveInMemoryState.GetDroneHive(command.TargetDroneId);
+            if (hiveId != null)
+            {
+                _logger.LogWarning("Cannot send individual command to drone {DroneId} because it is in Hive {HiveId}. Use Hive command endpoint instead.", 
+                    command.TargetDroneId, hiveId);
+                return;
+            }
+
             if (command.CommandId == Guid.Empty)
             {
                 command.CommandId = Guid.NewGuid();
@@ -200,6 +226,79 @@ namespace DevOpsProject.HiveMind.Logic.Services
             HiveInMemoryState.AddDroneCommand(command);
             _logger.LogInformation("Command {CommandId} of type {CommandType} sent to drone {DroneId}",
                 command.CommandId, command.CommandType, command.TargetDroneId);
+        }
+
+        public int SendCommandToHive(string hiveId, DroneCommand command)
+        {
+            if (command == null)
+            {
+                _logger.LogWarning("Attempted to send null command to Hive");
+                return 0;
+            }
+
+            if (string.IsNullOrWhiteSpace(hiveId))
+            {
+                _logger.LogWarning("Attempted to send command to Hive with invalid Hive ID");
+                return 0;
+            }
+
+            // Check if Hive exists
+            var hive = HiveInMemoryState.GetHive(hiveId);
+            if (hive == null)
+            {
+                _logger.LogWarning("Attempted to send command to non-existent Hive {HiveId}", hiveId);
+                return 0;
+            }
+
+            // Get all drones in the Hive
+            var hiveDrones = HiveInMemoryState.GetHiveDrones(hiveId);
+            if (!hiveDrones.Any())
+            {
+                _logger.LogWarning("Hive {HiveId} has no drones. Command not sent.", hiveId);
+                return 0;
+            }
+
+            // Auto-generate command ID and timestamp if not provided
+            if (command.CommandId == Guid.Empty)
+            {
+                command.CommandId = Guid.NewGuid();
+            }
+
+            if (command.Timestamp == default)
+            {
+                command.Timestamp = DateTime.UtcNow;
+            }
+
+            // Set commandPayload to null for commands that don't need it
+            if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)
+            {
+                command.CommandPayload = null;
+            }
+
+            int sentCount = 0;
+            foreach (var droneId in hiveDrones)
+            {
+                // Clear individual commands for this drone
+                HiveInMemoryState.ClearDroneCommands(droneId);
+
+                // Create a copy of the command for each drone
+                var droneCommand = new DroneCommand
+                {
+                    CommandId = Guid.NewGuid(), // Each drone gets unique command ID
+                    TargetDroneId = droneId,
+                    CommandType = command.CommandType,
+                    Timestamp = command.Timestamp,
+                    CommandPayload = command.CommandPayload
+                };
+
+                HiveInMemoryState.AddDroneCommand(droneCommand);
+                sentCount++;
+            }
+
+            _logger.LogInformation("Command {CommandId} of type {CommandType} sent to Hive {HiveId}. Sent to {Count} drones. Individual commands cleared.",
+                command.CommandId, command.CommandType, hiveId, sentCount);
+
+            return sentCount;
         }
     }
 }

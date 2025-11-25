@@ -214,6 +214,8 @@ groupBuilder.MapGet("drones/{droneId}/commands", (string droneId, [FromServices]
         return Results.NoContent();
     }
     
+    var hiveId = HiveInMemoryState.GetDroneHive(droneId);
+    
     // Return commands with numbering (index starting from 1)
     var numberedCommands = commands.Select((cmd, index) => new
     {
@@ -221,12 +223,15 @@ groupBuilder.MapGet("drones/{droneId}/commands", (string droneId, [FromServices]
         command = cmd
     }).ToList();
     
-    return Results.Ok(new
+    var response = new
     {
         droneId = droneId,
+        hiveId = hiveId,
         totalCommands = commands.Count,
         commands = numberedCommands
-    });
+    };
+    
+    return Results.Ok(response);
 });
 
 groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] DroneCommand command, [FromServices] IDroneCommandService commandService) =>
@@ -241,6 +246,18 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
     if (drone == null)
     {
         return Results.NotFound(new { message = $"Drone {droneId} not found. Cannot send command to non-existent drone." });
+    }
+    
+    // Check if drone is in a Hive
+    var hiveId = HiveInMemoryState.GetDroneHive(droneId);
+    if (hiveId != null)
+    {
+        return Results.BadRequest(new 
+        { 
+            message = $"Drone {droneId} is in Hive {hiveId} and cannot receive individual commands. Use POST /api/v1/hives/{hiveId}/commands to send commands to all drones in the Hive.",
+            droneId = droneId,
+            hiveId = hiveId
+        });
     }
     
     // Set target drone ID from URL
@@ -266,6 +283,55 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
     
     commandService.SendCommand(command);
     return Results.Created($"/api/v1/drones/{droneId}/commands/{command.CommandId}", command);
+});
+
+// Hive command endpoint - send command to all drones in Hive
+groupBuilder.MapPost("hives/{hiveId}/commands", (string hiveId, [FromBody] DroneCommand command, [FromServices] IDroneCommandService commandService) =>
+{
+    if (command == null)
+    {
+        return Results.BadRequest(new { message = "Command cannot be null" });
+    }
+    
+    // Check if Hive exists
+    var hive = HiveInMemoryState.GetHive(hiveId);
+    if (hive == null)
+    {
+        return Results.NotFound(new { message = $"Hive {hiveId} not found." });
+    }
+    
+    // Auto-generate timestamp if not provided
+    if (command.Timestamp == default)
+    {
+        command.Timestamp = DateTime.UtcNow;
+    }
+    
+    // Auto-generate command ID if not provided
+    if (command.CommandId == Guid.Empty)
+    {
+        command.CommandId = Guid.NewGuid();
+    }
+    
+    // Set commandPayload to null for commands that don't need it
+    if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)
+    {
+        command.CommandPayload = null;
+    }
+    
+    var sentCount = commandService.SendCommandToHive(hiveId, command);
+    if (sentCount == 0)
+    {
+        return Results.BadRequest(new { message = $"Hive {hiveId} has no drones. Command not sent." });
+    }
+    
+    return Results.Ok(new 
+    { 
+        message = $"Command sent to all drones in Hive {hiveId}",
+        hiveId = hiveId,
+        commandType = command.CommandType,
+        dronesAffected = sentCount,
+        commandId = command.CommandId
+    });
 });
 
 app.Run();

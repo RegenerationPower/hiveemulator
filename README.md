@@ -65,7 +65,7 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 - `PUT /api/v1/drones` – register or update a drone payload with its type (Scout/Striker/Relay) and weighted connections.
 - `DELETE /api/v1/drones/{droneId}` – remove a drone from the swarm graph.
 - `GET /api/v1/drones/{droneId}/analysis?minWeight=0.5` – evaluate whether HiveMind can reach a drone through relay links that meet the specified minimum connection weight (defaults to `0.5`).
-- `GET /api/v1/drones/{droneId}/commands` – retrieve all pending commands for a drone with numbering (returns 204 No Content if no commands available). **Note:** Drones in a Hive cannot receive individual commands and will return an error message.
+- `GET /api/v1/drones/{droneId}/commands` – retrieve all pending commands for a drone with numbering (returns 204 No Content if no commands available).
 - `POST /api/v1/drones/{droneId}/commands` – send a command directly to a specific drone (for HiveMind to control drones). **Note:** Cannot send individual commands to drones that are in a Hive. Use Hive command endpoint instead.
 
 ### HiveMind Hive Management API
@@ -79,6 +79,7 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 - `POST /api/v1/hives/{hiveId}/drones/{droneId}/join` – allow a drone to join/connect to a specific Hive. The drone must be registered first via `PUT /api/v1/drones`. A drone cannot be in multiple Hives simultaneously.
 - `GET /api/v1/hives/{hiveId}/drones/{droneId}/connected` – get information about drones connected to the specified drone within the same Hive (based on connection graph).
 - `POST /api/v1/hives/{hiveId}/commands` – send a command to all drones in a Hive. Individual commands for each drone are cleared and replaced with the new Hive command.
+- `POST /api/v1/hives/{hiveId}/drones/{droneId}/commands/mesh?minWeight=0.5` – send a command to a drone through the Mesh network using relay drones. Finds the shortest route with the best connection quality and sends relay commands to intermediate drones for forwarding. Returns route information including path, minimum link weight, hop count, and number of relays used.
 
 ## Build
 

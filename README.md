@@ -65,6 +65,19 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 - `PUT /api/v1/drones` – register or update a drone payload with its type (Scout/Striker/Relay) and weighted connections.
 - `DELETE /api/v1/drones/{droneId}` – remove a drone from the swarm graph.
 - `GET /api/v1/drones/{droneId}/analysis?minWeight=0.5` – evaluate whether HiveMind can reach a drone through relay links that meet the specified minimum connection weight (defaults to `0.5`).
+- `GET /api/v1/drones/{droneId}/commands` – retrieve the next pending command for a drone (returns 204 No Content if no commands available).
+- `POST /api/v1/drones/{droneId}/commands` – send a command directly to a specific drone (for HiveMind to control drones).
+
+### HiveMind Hive Management API
+- `POST /api/v1/hives` – create a new Hive with ID and optional name. Hive cannot be updated after creation.
+- `GET /api/v1/hives` – get all Hives.
+- `GET /api/v1/hives/{hiveId}` – get a specific Hive by ID.
+- `DELETE /api/v1/hives/{hiveId}` – delete a Hive and remove all its drones from the Hive.
+
+### HiveMind Hive and Drone Communication API
+- `GET /api/v1/hives/{hiveId}/drones` – get all drones in a specific Hive (swarm group).
+- `POST /api/v1/hives/{hiveId}/drones/{droneId}/join` – allow a drone to join/connect to a specific Hive. The drone must be registered first via `PUT /api/v1/drones`. A drone cannot be in multiple Hives simultaneously.
+- `GET /api/v1/hives/{hiveId}/drones/{droneId}/connected` – get information about drones connected to the specified drone within the same Hive (based on connection graph).
 
 ## Build
 

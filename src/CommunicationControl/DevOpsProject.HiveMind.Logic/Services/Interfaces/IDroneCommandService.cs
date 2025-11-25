@@ -13,6 +13,7 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
         DroneCommand? GetNextCommand(string droneId);
         IReadOnlyCollection<DroneCommand> GetAllCommands(string droneId);
         void SendCommand(DroneCommand command);
+        int SendCommandToHive(string hiveId, DroneCommand command);
     }
 }
 

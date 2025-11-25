@@ -263,6 +263,14 @@ namespace DevOpsProject.HiveMind.Logic.State
             }
         }
 
+        public static void RemoveDroneCommands(string droneId)
+        {
+            lock (_droneCommandLock)
+            {
+                _droneCommands.Remove(droneId);
+            }
+        }
+
         public static bool AddDroneToHive(string hiveId, string droneId)
         {
             lock (_hiveDroneLock)

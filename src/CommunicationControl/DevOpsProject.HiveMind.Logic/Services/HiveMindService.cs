@@ -105,6 +105,19 @@ namespace DevOpsProject.HiveMind.Logic.Services
             StopTelemetry();
         }
 
+        public HiveTelemetryModel GetCurrentTelemetry()
+        {
+            return new HiveTelemetryModel
+            {
+                HiveID = _communicationConfigurationOptions.HiveID,
+                Location = HiveInMemoryState.CurrentLocation ?? default,
+                Height = 5, // TODO: Get from actual state
+                Speed = 15, // TODO: Get from actual state
+                State = HiveInMemoryState.IsMoving ? Shared.Enums.HiveMindState.Move : Shared.Enums.HiveMindState.Stop,
+                Timestamp = DateTime.UtcNow
+            };
+        }
+
         #region private methods
         private void StartTelemetry()
         {

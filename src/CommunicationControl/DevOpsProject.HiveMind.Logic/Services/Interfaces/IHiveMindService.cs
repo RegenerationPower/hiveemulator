@@ -8,5 +8,6 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
         bool AddInterference(InterferenceModel interferenceModel);
         void RemoveInterference(Guid interferenceId);
         void StopAllTelemetry();
+        HiveTelemetryModel GetCurrentTelemetry();
     }
 }

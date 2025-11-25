@@ -210,6 +210,58 @@ groupBuilder.MapGet("hives/{hiveId}/drones/{droneId}/connected", (string hiveId,
     return Results.Ok(new { hiveId, droneId, connectedDrones, count = connectedDrones.Count });
 });
 
+// Mesh command endpoint - send command through mesh network (only for drones in Hive)
+groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/commands/mesh", (string hiveId, string droneId, [FromBody] DroneCommand command, [FromQuery] double? minWeight, [FromServices] IDroneRelayService relayService) =>
+{
+    if (command == null)
+    {
+        return Results.BadRequest(new { message = "Command cannot be null" });
+    }
+    
+    // Check if Hive exists
+    var hive = HiveInMemoryState.GetHive(hiveId);
+    if (hive == null)
+    {
+        return Results.NotFound(new { message = $"Hive {hiveId} not found." });
+    }
+    
+    // Check if drone exists
+    var drone = HiveInMemoryState.GetDrone(droneId);
+    if (drone == null)
+    {
+        return Results.NotFound(new { message = $"Drone {droneId} not found. Cannot send command to non-existent drone." });
+    }
+    
+    // Check if drone is in the specified Hive
+    var droneHiveId = HiveInMemoryState.GetDroneHive(droneId);
+    if (droneHiveId == null || droneHiveId != hiveId)
+    {
+        return Results.BadRequest(new 
+        { 
+            message = $"Drone {droneId} is not in Hive {hiveId}. Mesh commands can only be sent to drones that are part of the specified Hive.",
+            droneId = droneId,
+            hiveId = hiveId,
+            actualHiveId = droneHiveId
+        });
+    }
+    
+    // Set commandPayload to null for commands that don't need it
+    if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)
+    {
+        command.CommandPayload = null;
+    }
+    
+    // Send command via mesh network
+    var meshResponse = relayService.SendCommandViaMesh(droneId, command, minWeight ?? 0.5);
+    
+    if (!meshResponse.Success)
+    {
+        return Results.BadRequest(meshResponse);
+    }
+    
+    return Results.Ok(meshResponse);
+});
+
 // Drone command endpoints (direct to drone, not through Hive)
 groupBuilder.MapGet("drones/{droneId}/commands", (string droneId, [FromServices] IDroneCommandService commandService) =>
 {
@@ -286,6 +338,7 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
     commandService.SendCommand(command);
     return Results.Created($"/api/v1/drones/{droneId}/commands/{command.CommandId}", command);
 });
+
 
 // Hive command endpoint - send command to all drones in Hive
 groupBuilder.MapPost("hives/{hiveId}/commands", (string hiveId, [FromBody] DroneCommand command, [FromServices] IDroneCommandService commandService) =>

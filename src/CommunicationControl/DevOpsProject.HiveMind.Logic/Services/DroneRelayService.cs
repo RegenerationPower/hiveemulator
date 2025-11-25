@@ -2,6 +2,7 @@ using DevOpsProject.HiveMind.Logic.Services.Interfaces;
 using DevOpsProject.HiveMind.Logic.State;
 using DevOpsProject.Shared.Enums;
 using DevOpsProject.Shared.Models;
+using DevOpsProject.Shared.Models.Commands.Drone;
 using DevOpsProject.Shared.Models.DTO.hive;
 using Microsoft.Extensions.Logging;
 using System.Linq;
@@ -88,12 +89,15 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 return response;
             }
 
+            // BFS to find shortest path with best quality (highest minimum weight)
+            // BFS naturally finds the shortest path, and we track minimum weight along the path
             var parents = new Dictionary<string, string>();
             var minWeightTracker = new Dictionary<string, double>();
             var visited = new HashSet<string>();
             var queue = new Queue<string>();
             var adjacency = swarm.ToDictionary(d => d.Id, d => d.Connections ?? new List<DroneConnection>());
 
+            // Initialize all relay entry points
             foreach (var relayId in relayEntryPoints)
             {
                 queue.Enqueue(relayId);
@@ -106,6 +110,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 var current = queue.Dequeue();
                 if (current == droneId)
                 {
+                    // Found target - BFS guarantees this is the shortest path
                     var path = BuildPath(current, parents);
                     response.CanConnect = true;
                     response.Path = path;
@@ -137,6 +142,94 @@ namespace DevOpsProject.HiveMind.Logic.Services
             }
 
             _logger.LogWarning("HiveMind cannot reach drone {DroneId} with the current relay configuration.", droneId);
+            return response;
+        }
+
+        public MeshCommandResponse SendCommandViaMesh(string targetDroneId, DroneCommand command, double minimumWeight = 0.5)
+        {
+            var response = new MeshCommandResponse
+            {
+                TargetDroneId = targetDroneId,
+                RoutePath = Array.Empty<string>(),
+                Success = false
+            };
+
+            // First, analyze connection to find the best route
+            var analysis = AnalyzeConnection(targetDroneId, minimumWeight);
+            
+            if (!analysis.CanConnect || !analysis.Path.Any())
+            {
+                response.ErrorMessage = $"Cannot reach drone {targetDroneId} through mesh network. No valid route found.";
+                _logger.LogWarning("Cannot send command to {DroneId} via mesh: {Error}", targetDroneId, response.ErrorMessage);
+                return response;
+            }
+
+            var routePath = analysis.Path.ToList();
+            response.RoutePath = routePath;
+            response.MinimumLinkWeight = analysis.MinimumLinkWeight;
+            response.HopCount = analysis.HopCount;
+
+            // If the route has only one hop (direct connection from relay), send command directly
+            if (routePath.Count <= 1)
+            {
+                // Direct connection - send command directly to target
+                command.TargetDroneId = targetDroneId;
+                command.CommandId = Guid.NewGuid();
+                if (command.Timestamp == default)
+                {
+                    command.Timestamp = DateTime.UtcNow;
+                }
+                HiveInMemoryState.AddDroneCommand(command);
+                response.Success = true;
+                response.RelaysUsed = 0;
+                _logger.LogInformation("Command sent directly to {DroneId} (no relay needed)", targetDroneId);
+                return response;
+            }
+
+            // Send relay commands to intermediate drones
+            int relaysUsed = 0;
+            for (int i = 0; i < routePath.Count - 1; i++)
+            {
+                var currentDroneId = routePath[i];
+                var nextDroneId = routePath[i + 1];
+                var isFinalHop = (i == routePath.Count - 2);
+
+                // Create relay command for intermediate drone
+                var relayCommand = new DroneCommand
+                {
+                    CommandId = Guid.NewGuid(),
+                    TargetDroneId = currentDroneId,
+                    CommandType = DroneCommandType.Relay,
+                    Timestamp = DateTime.UtcNow,
+                    CommandPayload = new RelayDroneCommandPayload
+                    {
+                        FinalDestinationDroneId = targetDroneId,
+                        NextHopDroneId = isFinalHop ? null : nextDroneId,
+                        FinalCommand = command,
+                        RoutePath = routePath
+                    }
+                };
+
+                HiveInMemoryState.AddDroneCommand(relayCommand);
+                relaysUsed++;
+                _logger.LogInformation("Relay command sent to {CurrentDroneId} for routing to {TargetDroneId} via {NextDroneId}",
+                    currentDroneId, targetDroneId, nextDroneId);
+            }
+
+            // Send final command to target drone
+            command.TargetDroneId = targetDroneId;
+            command.CommandId = Guid.NewGuid();
+            if (command.Timestamp == default)
+            {
+                command.Timestamp = DateTime.UtcNow;
+            }
+            HiveInMemoryState.AddDroneCommand(command);
+
+            response.Success = true;
+            response.RelaysUsed = relaysUsed;
+            _logger.LogInformation("Command sent to {TargetDroneId} via mesh network using {RelayCount} relay(s). Route: {Route}",
+                targetDroneId, relaysUsed, string.Join(" -> ", routePath));
+
             return response;
         }
 

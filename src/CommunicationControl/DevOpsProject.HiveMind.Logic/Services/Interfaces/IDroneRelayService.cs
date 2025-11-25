@@ -1,4 +1,5 @@
 using DevOpsProject.Shared.Models;
+using DevOpsProject.Shared.Models.Commands.Drone;
 using DevOpsProject.Shared.Models.DTO.hive;
 
 namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
@@ -9,6 +10,7 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
         bool UpsertDrone(Drone drone);
         bool RemoveDrone(string droneId);
         DroneConnectionAnalysisResponse AnalyzeConnection(string droneId, double minimumWeight = 0.5);
+        MeshCommandResponse SendCommandViaMesh(string targetDroneId, DroneCommand command, double minimumWeight = 0.5);
     }
 }
 

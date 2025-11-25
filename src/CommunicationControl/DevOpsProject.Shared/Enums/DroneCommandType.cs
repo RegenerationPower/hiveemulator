@@ -6,7 +6,8 @@ namespace DevOpsProject.Shared.Enums
         Move = 1,
         Stop = 2,
         GetTelemetry = 3,
-        ChangeConnection = 4
+        ChangeConnection = 4,
+        Relay = 5
     }
 }
 

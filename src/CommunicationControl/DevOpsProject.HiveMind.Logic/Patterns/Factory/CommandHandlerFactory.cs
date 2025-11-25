@@ -1,7 +1,7 @@
 ﻿using DevOpsProject.HiveMind.Logic.Patterns.Command.Interfaces;
 using DevOpsProject.HiveMind.Logic.Patterns.Factory.Interfaces;
 using DevOpsProject.Shared.Enums;
-using DevOpsProject.Shared.Models.HiveMindCommands;
+using DevOpsProject.Shared.Models.Commands.HiveMind;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

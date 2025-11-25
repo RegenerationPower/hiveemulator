@@ -1,7 +1,7 @@
 ﻿using DevOpsProject.Shared.Models;
-using DevOpsProject.Shared.Models.HiveMindCommands;
 using System.Text;
 using System.Text.Json;
+using DevOpsProject.Shared.Models.Commands.HiveMind;
 
 namespace DevOpsProject.Shared.Clients
 {

@@ -4,7 +4,7 @@ using DevOpsProject.HiveMind.Logic.Patterns.Factory;
 using DevOpsProject.HiveMind.Logic.Patterns.Factory.Interfaces;
 using DevOpsProject.HiveMind.Logic.Services;
 using DevOpsProject.HiveMind.Logic.Services.Interfaces;
-using DevOpsProject.Shared.Models.HiveMindCommands;
+using DevOpsProject.Shared.Models.Commands.HiveMind;
 
 namespace DevOpsProject.HiveMind.API.DI
 {
@@ -12,14 +12,14 @@ namespace DevOpsProject.HiveMind.API.DI
     {
         public static IServiceCollection AddHiveMindLogic(this IServiceCollection serviceCollection)
         {
-            serviceCollection.AddTransient<ICommandHandler<MoveHiveMindCommand>, MoveHiveMindCommandHandler>();
-            serviceCollection.AddTransient<ICommandHandler<StopHiveMindCommand>, StopHiveMindCommandHandler>();
-            serviceCollection.AddTransient<ICommandHandler<AddInterferenceToHiveMindCommand>, AddInterferenceToHiveMindCommandHandler>();
-            serviceCollection.AddTransient<ICommandHandler<DeleteInterferenceFromHiveMindCommand>, DeleteInterferenceFromHiveMindCommandHandler>();
-            serviceCollection.AddTransient<ICommandHandlerFactory, CommandHandlerFactory>();
+            serviceCollection.AddScoped<ICommandHandler<MoveHiveMindCommand>, MoveHiveMindCommandHandler>();
+            serviceCollection.AddScoped<ICommandHandler<StopHiveMindCommand>, StopHiveMindCommandHandler>();
+            serviceCollection.AddScoped<ICommandHandler<AddInterferenceToHiveMindCommand>, AddInterferenceToHiveMindCommandHandler>();
+            serviceCollection.AddScoped<ICommandHandler<DeleteInterferenceFromHiveMindCommand>, DeleteInterferenceFromHiveMindCommandHandler>();
+            serviceCollection.AddScoped<ICommandHandlerFactory, CommandHandlerFactory>();
 
-            serviceCollection.AddTransient<IHiveMindService, HiveMindService>();
-            serviceCollection.AddTransient<IHiveMindMovingService, HiveMindMovingService>();
+            serviceCollection.AddScoped<IHiveMindService, HiveMindService>();
+            serviceCollection.AddScoped<IHiveMindMovingService, HiveMindMovingService>();
 
             return serviceCollection;
         }

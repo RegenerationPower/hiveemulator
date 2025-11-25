@@ -1,6 +1,8 @@
 ﻿using Asp.Versioning;
 using DevOpsProject.CommunicationControl.Logic.Services.Interfaces;
+using DevOpsProject.CommunicationControl.Logic.Services.Interference;
 using DevOpsProject.Shared.Models;
+using DevOpsProject.Shared.Models.DTO.hive;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DevOpsProject.CommunicationControl.API.Controllers
@@ -10,13 +12,18 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
     [Route("api/v{version:apiVersion}/hive")]
     public class HiveController : Controller
     {
-        private readonly ICommunicationControlService _communicationControlService;
+        private readonly IHiveManagementService _hiveManagementService;
+        private readonly ITelemetryService _telemetryService;
+        private readonly IInterferenceManagementService _interferenceManagementService;
         private readonly ILogger<HiveController> _logger;
 
-        public HiveController(ICommunicationControlService communicationControlService, ILogger<HiveController> logger)
+        public HiveController(ILogger<HiveController> logger, IHiveManagementService hiveManagementService, 
+            ITelemetryService telemetryService, IInterferenceManagementService interferenceManagementService)
         {
-            _communicationControlService = communicationControlService;
             _logger = logger;
+            _hiveManagementService = hiveManagementService;
+            _telemetryService = telemetryService;
+            _interferenceManagementService = interferenceManagementService;
         }
 
         [HttpPost("connect")]
@@ -30,8 +37,8 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
                 HiveSchema = request.HiveSchema
             };
 
-            var hiveOperationalArea = await _communicationControlService.ConnectHive(hiveModel);
-            var interferences = await _communicationControlService.GetAllInterferences();
+            var hiveOperationalArea = await  _hiveManagementService.ConnectHive(hiveModel);
+            var interferences = await _interferenceManagementService.GetAllInterferences();
 
             var connectResponse = new HiveConnectResponse
             {
@@ -53,13 +60,13 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
                 Speed = request.Speed,
                 Height = request.Height,
                 State = request.State,
-                Timestamp = DateTime.Now
+                Timestamp = DateTime.UtcNow
             };
 
-            bool isHiveConnected = await _communicationControlService.IsHiveConnected(request.HiveID);
+            bool isHiveConnected = await  _hiveManagementService.IsHiveConnected(request.HiveID);
             if (isHiveConnected)
             {
-                var telemetryUpdateTimestamp = await _communicationControlService.AddTelemetry(hiveTelemetryModel);
+                var telemetryUpdateTimestamp = await _telemetryService.AddTelemetry(hiveTelemetryModel);
                 var telemetryResponse = new HiveTelemetryResponse
                 {
                     Timestamp = telemetryUpdateTimestamp

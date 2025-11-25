@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using System.Text.Json;
 using DevOpsProject.HiveMind.Logic.State;
 using System.Text;
+using DevOpsProject.Shared.Models.DTO.hive;
 using Polly;
 
 namespace DevOpsProject.HiveMind.Logic.Services

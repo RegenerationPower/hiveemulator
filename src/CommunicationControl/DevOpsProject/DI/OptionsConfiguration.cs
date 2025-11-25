@@ -1,5 +1,5 @@
 ﻿using DevOpsProject.Shared.Configuration;
-using DevOpsProject.Shared.Models;
+
 
 namespace DevOpsProject.CommunicationControl.API.DI
 {

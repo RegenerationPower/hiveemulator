@@ -1,6 +1,6 @@
 ﻿using DevOpsProject.HiveMind.Logic.Patterns.Command.Interfaces;
 using DevOpsProject.HiveMind.Logic.Services.Interfaces;
-using DevOpsProject.Shared.Models.HiveMindCommands;
+using DevOpsProject.Shared.Models.Commands.HiveMind;
 
 namespace DevOpsProject.HiveMind.Logic.Patterns.Command
 {

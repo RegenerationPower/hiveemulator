@@ -1,5 +1,7 @@
 ﻿using DevOpsProject.CommunicationControl.Logic.Services;
 using DevOpsProject.CommunicationControl.Logic.Services.Interfaces;
+using DevOpsProject.CommunicationControl.Logic.Services.Interference;
+using DevOpsProject.CommunicationControl.Logic.Services.telemetry;
 
 namespace DevOpsProject.CommunicationControl.API.DI
 {
@@ -7,9 +9,11 @@ namespace DevOpsProject.CommunicationControl.API.DI
     {
         public static IServiceCollection AddCommunicationControlLogic(this IServiceCollection serviceCollection)
         {
-            serviceCollection.AddTransient<ICommunicationControlService, CommunicationControlService>();
-            serviceCollection.AddTransient<ISpatialService, SpatialService>();
-
+            serviceCollection.AddScoped<ISpatialService, SpatialService>();
+            serviceCollection.AddScoped<IHiveManagementService, HiveManagementService>();
+            serviceCollection.AddScoped<IHiveCommandService, HiveCommandService>();
+            serviceCollection.AddScoped<ITelemetryService, TelemetryService>();
+            serviceCollection.AddScoped<IInterferenceManagementService, InterferenceManagementService>();
             return serviceCollection;
         }
     }

@@ -15,6 +15,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DevOpsProject.HiveMind.API"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DevOpsProject.HiveMind.Logic", "DevOpsProject.HiveMind.Logic\DevOpsProject.HiveMind.Logic.csproj", "{83D3A1EA-64FE-407C-AB3A-A35CC2C9F8EE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DevOpsProject.Bms.API", "DevOpsProject.Bms.API\DevOpsProject.Bms.API.csproj", "{9C9D5AEB-05DA-4BD7-A1FF-AF6F67E75BBF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DevOpsProject.Bms.Logic", "DevOpsProject.Bms.Logic\DevOpsProject.Bms.Logic.csproj", "{18A65F76-E708-471F-8A5E-CC2F0A725015}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +49,14 @@ Global
 		{83D3A1EA-64FE-407C-AB3A-A35CC2C9F8EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{83D3A1EA-64FE-407C-AB3A-A35CC2C9F8EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{83D3A1EA-64FE-407C-AB3A-A35CC2C9F8EE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9C9D5AEB-05DA-4BD7-A1FF-AF6F67E75BBF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9C9D5AEB-05DA-4BD7-A1FF-AF6F67E75BBF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9C9D5AEB-05DA-4BD7-A1FF-AF6F67E75BBF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9C9D5AEB-05DA-4BD7-A1FF-AF6F67E75BBF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{18A65F76-E708-471F-8A5E-CC2F0A725015}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{18A65F76-E708-471F-8A5E-CC2F0A725015}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{18A65F76-E708-471F-8A5E-CC2F0A725015}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{18A65F76-E708-471F-8A5E-CC2F0A725015}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

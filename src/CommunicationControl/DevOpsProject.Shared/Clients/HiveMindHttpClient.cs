@@ -1,6 +1,7 @@
 ﻿using DevOpsProject.Shared.Models;
 using System.Text;
 using System.Text.Json;
+using DevOpsProject.Shared.Models.DTO.hive;
 
 namespace DevOpsProject.Shared.Clients
 {

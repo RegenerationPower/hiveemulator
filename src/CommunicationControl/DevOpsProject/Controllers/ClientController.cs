@@ -1,7 +1,10 @@
 ﻿using Asp.Versioning;
-using DevOpsProject.CommunicationControl.API.DTO.Client.Request;
 using DevOpsProject.CommunicationControl.Logic.Services.Interfaces;
+using DevOpsProject.CommunicationControl.Logic.Services.Interference;
+using DevOpsProject.Shared.Configuration;
 using DevOpsProject.Shared.Models;
+using DevOpsProject.Shared.Models.DTO.hive;
+using DevOpsProject.Shared.Models.DTO.Interference;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -12,15 +15,21 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
     [Route("api/v{version:apiVersion}/client")]
     public class ClientController : Controller
     {
-        private readonly ICommunicationControlService _communicationControlService;
         private readonly IOptionsMonitor<OperationalAreaConfig> _operationalAreaConfig;
         private readonly ILogger<ClientController> _logger;
+        private readonly IHiveManagementService _hiveManagementService;
+        private readonly IInterferenceManagementService _interferenceManagementService;
+        private readonly IHiveCommandService _hiveCommandService;
 
-        public ClientController(ICommunicationControlService communicationControlService, IOptionsMonitor<OperationalAreaConfig> operationalAreaConfig, ILogger<ClientController> logger)
+        public ClientController(IOptionsMonitor<OperationalAreaConfig> operationalAreaConfig, 
+            ILogger<ClientController> logger, IHiveCommandService hiveCommandService, 
+            IInterferenceManagementService interferenceManagementService, IHiveManagementService hiveManagementService)
         {
-            _communicationControlService = communicationControlService;
             _operationalAreaConfig = operationalAreaConfig;
             _logger = logger;
+            _hiveCommandService = hiveCommandService;
+            _interferenceManagementService = interferenceManagementService;
+            _hiveManagementService = hiveManagementService;
         }
 
         [HttpGet("area")]
@@ -32,35 +41,35 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
         [HttpGet("hive/{hiveId}")]
         public async Task<IActionResult> GetHive(string hiveId)
         {
-            var hiveExists = await _communicationControlService.IsHiveConnected(hiveId);
+            var hiveExists = await _hiveManagementService.IsHiveConnected(hiveId);
             if (!hiveExists)
             {
                 _logger.LogWarning("Failed to get Hive for HiveID: {hiveId}", hiveId);
                 return NotFound($"Hive with HiveID: {hiveId} is not found");
             }
 
-            var hiveModel = await _communicationControlService.GetHiveModel(hiveId);
+            var hiveModel = await _hiveManagementService.GetHiveModel(hiveId);
             return Ok(hiveModel);
         }
 
         [HttpGet("hive")]
         public async Task<IActionResult> GetHives()
         {
-            var hives = await _communicationControlService.GetAllHives();
+            var hives = await _hiveManagementService.GetAllHives();
             return Ok(hives);
         }
 
         [HttpGet("interferences")]
         public async Task<IActionResult> GetInterferences()
         {
-            var interferences = await _communicationControlService.GetAllInterferences();
+            var interferences = await _interferenceManagementService.GetAllInterferences();
             return Ok(interferences);
         }
 
         [HttpDelete("hive/{hiveId}")]
         public async Task<IActionResult> DisconnectHive(string hiveId)
         {
-            var disconnetResult = await _communicationControlService.DisconnectHive(hiveId);
+            var disconnetResult = await _hiveManagementService.DisconnectHive(hiveId);
             return Ok(disconnetResult);
         }
 
@@ -77,7 +86,7 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
                 {
                     try
                     {
-                        await _communicationControlService.SendHiveControlSignal(id, request.Destination);
+                        await _hiveCommandService.SendHiveControlSignal(id, request.Destination);
                     }
                     catch (Exception ex)
                     {
@@ -95,7 +104,7 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
         {
             _logger.LogInformation("DeleteInterference request: {request}", request);
 
-            var interferenceDeleted = await _communicationControlService.DeleteInterference(request.Id);
+            var interferenceDeleted = await _interferenceManagementService.DeleteInterference(request.Id);
             if (!interferenceDeleted)
             {
                 _logger.LogError("Interference with Id: {id} was not deleted", request.Id);
@@ -105,7 +114,7 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
             {
                 try
                 {
-                    await _communicationControlService.NotifyHivesOnDeletedInterference(request.Id);
+                    await _interferenceManagementService.NotifyHivesOnDeletedInterference(request.Id);
                 }
                 catch (Exception ex)
                 {
@@ -127,7 +136,7 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
             if (request.RadiusKM <= 0)
                 return BadRequest("Radius must be greater than 0");
 
-            var addedInterferenceId = await _communicationControlService.SetInterference(new InterferenceModel
+            var addedInterferenceId = await _interferenceManagementService.SetInterference(new InterferenceModel
             {
                 Id = Guid.NewGuid(),
                 CreatedAt = DateTime.UtcNow,
@@ -139,7 +148,7 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
             {
                 try
                 {
-                    await _communicationControlService.NotifyHivesAboutAddedInterference(addedInterferenceId);
+                    await _interferenceManagementService.NotifyHivesAboutAddedInterference(addedInterferenceId);
                 }
                 catch (Exception ex)
                 {
@@ -163,7 +172,7 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
                 {
                     try
                     {
-                        await _communicationControlService.SendHiveStopSignal(id);
+                        await _hiveCommandService.SendHiveStopSignal(id);
                     }
                     catch (Exception ex)
                     {

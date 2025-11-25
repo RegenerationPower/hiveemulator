@@ -81,6 +81,11 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 - `POST /api/v1/hives/{hiveId}/commands` – send a command to all drones in a Hive. Individual commands for each drone are cleared and replaced with the new Hive command.
 - `POST /api/v1/hives/{hiveId}/drones/{droneId}/commands/mesh?minWeight=0.5` – send a command to a drone through the Mesh network using relay drones. Finds the shortest route with the best connection quality and sends relay commands to intermediate drones for forwarding. Returns route information including path, minimum link weight, hop count, and number of relays used.
 
+### HiveMind Topology Management API
+- `POST /api/v1/hives/{hiveId}/topology/rebuild` – rebuild topology between drones in a Hive. Supports `mesh` (full mesh - every drone connects to every other), `star` (one central hub), or `dual_star` (two hubs) topologies. Request body: `{ "topologyType": "mesh|star|dual_star", "defaultWeight": 0.8 }`.
+- `POST /api/v1/hives/{hiveId}/topology/connect-hivemind` – connect all drones in a Hive to HiveMind using star or dual-star topology. Connects drones to relay drones (entry points to HiveMind). Request body: `{ "topologyType": "star|dual_star", "connectionWeight": 1.0, "hubDroneIds": ["relay-1", "relay-2"] }` (hubDroneIds optional, will auto-select if not provided).
+- `GET /api/v1/hives/{hiveId}/topology/connectivity` – analyze connectivity of the swarm in a Hive. Returns information about connected components, isolated groups, and whether all drones are connected.
+
 ## Build
 
 ### Map Clinet

@@ -11,6 +11,9 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
         bool RemoveDrone(string droneId);
         DroneConnectionAnalysisResponse AnalyzeConnection(string droneId, double minimumWeight = 0.5);
         MeshCommandResponse SendCommandViaMesh(string targetDroneId, DroneCommand command, double minimumWeight = 0.5);
+        TopologyRebuildResponse RebuildTopology(TopologyRebuildRequest request);
+        TopologyRebuildResponse ConnectToHiveMind(ConnectToHiveMindRequest request);
+        SwarmConnectivityResponse AnalyzeSwarmConnectivity(string hiveId);
     }
 }
 

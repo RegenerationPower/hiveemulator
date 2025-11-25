@@ -9,10 +9,10 @@ using DevOpsProject.Shared.Models;
 using DevOpsProject.Shared.Models.Commands.HiveMind;
 using Microsoft.AspNetCore.Mvc;
 using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +42,12 @@ builder.Services.AddCorsConfiguration(corsPolicyName);
 
 builder.Services.AddExceptionHandler<ExceptionHandlingMiddleware>();
 builder.Services.AddProblemDetails();
+
+// Configure JSON options to serialize enums as strings
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 var app = builder.Build();
 
@@ -92,6 +98,37 @@ groupBuilder.MapPost("command", async (HiveMindCommand command, [FromServices]IC
     var handler = factory.GetHandler(command);
     await handler.HandleAsync(command);
     return Results.Ok();
+});
+
+groupBuilder.MapGet("drones", ([FromServices] IDroneRelayService relayService) =>
+{
+    var drones = relayService.GetSwarm();
+    return Results.Ok(drones);
+});
+
+groupBuilder.MapPut("drones", ([FromBody] Drone drone, [FromServices] IDroneRelayService relayService) =>
+{
+    bool isNew = relayService.UpsertDrone(drone);
+    if (isNew)
+    {
+        return Results.Created($"/api/v1/drones/{drone.Id}", new { message = $"Drone {drone.Id} successfully created", droneId = drone.Id });
+    }
+    else
+    {
+        return Results.Ok(new { message = $"Drone {drone.Id} already exists and was updated", droneId = drone.Id });
+    }
+});
+
+groupBuilder.MapDelete("drones/{droneId:guid}", (Guid droneId, [FromServices] IDroneRelayService relayService) =>
+{
+    var removed = relayService.RemoveDrone(droneId);
+    return removed ? Results.NoContent() : Results.NotFound();
+});
+
+groupBuilder.MapGet("drones/{droneId:guid}/analysis", (Guid droneId, [FromQuery] double? minWeight, [FromServices] IDroneRelayService relayService) =>
+{
+    var analysis = relayService.AnalyzeConnection(droneId, minWeight ?? 0.5);
+    return Results.Ok(analysis);
 });
 
 app.Run();

@@ -144,7 +144,24 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 return response;
             }
 
-            var relayEntryPoints = swarm.Where(d => d.Type == DroneType.Relay).Select(d => d.Id).ToList();
+            var relayEntryPoints = new List<string>();
+            var hiveId = HiveInMemoryState.GetDroneHive(droneId);
+            if (!string.IsNullOrWhiteSpace(hiveId))
+            {
+                var configuredRelays = HiveInMemoryState.GetHiveEntryRelays(hiveId);
+                if (configuredRelays.Any())
+                {
+                    relayEntryPoints.AddRange(configuredRelays);
+                }
+            }
+
+            if (!relayEntryPoints.Any())
+            {
+                relayEntryPoints = swarm
+                    .Where(d => d.Type == DroneType.Relay)
+                    .Select(d => d.Id)
+                    .ToList();
+            }
             if (!relayEntryPoints.Any())
             {
                 _logger.LogWarning("Cannot evaluate connection to {DroneId} because no relay drones are registered.", droneId);
@@ -158,6 +175,9 @@ namespace DevOpsProject.HiveMind.Logic.Services
             var visited = new HashSet<string>();
             var queue = new Queue<string>();
             var adjacency = swarm.ToDictionary(d => d.Id, d => d.Connections ?? new List<DroneConnection>());
+            var weightLookup = adjacency.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.ToDictionary(conn => conn.TargetDroneId, conn => conn.Weight));
 
             // Initialize all relay entry points
             foreach (var relayId in relayEntryPoints)
@@ -173,12 +193,24 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 if (current == droneId)
                 {
                     // Found target - BFS guarantees this is the shortest path
-                    var path = BuildPath(current, parents);
+                    var (pathNodes, pathWeights) = BuildPathWithWeights(current, parents, weightLookup);
                     response.CanConnect = true;
-                    response.Path = path;
-                    response.EntryRelayDroneId = path.FirstOrDefault();
+                    response.Path = pathNodes.ToList();
+                    response.PathWeights = pathWeights.ToList();
+                    response.EntryRelayDroneId = pathNodes.FirstOrDefault();
                     var minWeight = minWeightTracker[current];
                     response.MinimumLinkWeight = double.IsInfinity(minWeight) ? 1 : minWeight;
+                    if (pathNodes.Count > 1)
+                    {
+                        var segments = new List<string>();
+                        for (int i = 0; i < pathNodes.Count - 1; i++)
+                        {
+                            var segmentWeight = i < pathWeights.Count ? pathWeights[i] : 0;
+                            segments.Add($"{pathNodes[i]}->{pathNodes[i + 1]}({segmentWeight:F2})");
+                        }
+                        _logger.LogInformation("Analyze route to {Target}: {Segments}",
+                            droneId, string.Join(" | ", segments));
+                    }
                     return response;
                 }
 
@@ -227,9 +259,23 @@ namespace DevOpsProject.HiveMind.Logic.Services
             }
 
             var routePath = analysis.Path.ToList();
+            var routeWeights = analysis.PathWeights?.ToList() ?? new List<double>();
             response.RoutePath = routePath;
+            response.RouteWeights = routeWeights;
             response.MinimumLinkWeight = analysis.MinimumLinkWeight;
             response.HopCount = analysis.HopCount;
+
+            if (routePath.Count > 1 && routeWeights.Any())
+            {
+                var segments = new List<string>();
+                for (int i = 0; i < routePath.Count - 1; i++)
+                {
+                    var weight = i < routeWeights.Count ? routeWeights[i] : 0;
+                    segments.Add($"{routePath[i]}->{routePath[i + 1]}({weight:F2})");
+                }
+                _logger.LogInformation("Mesh route for {TargetDroneId}: {Segments}",
+                    targetDroneId, string.Join(" | ", segments));
+            }
 
             // If the route has only one hop (direct connection from relay), send command directly
             if (routePath.Count <= 1)
@@ -300,7 +346,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
             var response = new TopologyRebuildResponse
             {
                 HiveId = request.HiveId,
-                TopologyType = request.TopologyType,
+                TopologyType = "entry_relays",
                 Success = false
             };
 
@@ -378,7 +424,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
             var response = new TopologyRebuildResponse
             {
                 HiveId = request.HiveId,
-                TopologyType = request.TopologyType,
+                TopologyType = "entry_relays",
                 Success = false
             };
 
@@ -402,62 +448,44 @@ namespace DevOpsProject.HiveMind.Logic.Services
             var dronesInHive = swarm.Where(d => hiveDrones.Contains(d.Id)).ToList();
 
             // Find relay drones (entry points to HiveMind)
-            var relayDrones = swarm.Where(d => d.Type == DroneType.Relay).ToList();
+            var relayDrones = dronesInHive.Where(d => d.Type == DroneType.Relay).ToList();
             if (!relayDrones.Any())
             {
                 response.ErrorMessage = "No relay drones found. Cannot connect to HiveMind.";
                 return response;
             }
+            var entryRelays = new List<string>();
 
-            int connectionsCreated = 0;
-
-            switch (request.TopologyType.ToLower())
+            if (request.EntryRelayIds != null && request.EntryRelayIds.Any())
             {
-                case "star":
-                    // Connect all drones to one relay drone
-                    var hub = request.HubDroneIds?.FirstOrDefault() != null
-                        ? relayDrones.FirstOrDefault(d => d.Id == request.HubDroneIds[0])
-                        : relayDrones.First();
-                    
-                    if (hub == null)
+                foreach (var relayId in request.EntryRelayIds.Where(id => !string.IsNullOrWhiteSpace(id)))
+                {
+                    var relay = relayDrones.FirstOrDefault(d => d.Id == relayId);
+                    if (relay == null)
                     {
-                        response.ErrorMessage = "Specified hub drone not found or is not a relay.";
+                        response.ErrorMessage = $"Relay drone {relayId} not found in Hive {request.HiveId}.";
                         return response;
                     }
-
-                    connectionsCreated = ConnectDronesToHub(dronesInHive, hub.Id, request.ConnectionWeight);
-                    break;
-
-                case "dual_star":
-                    // Connect all drones to two relay drones
-                    var hubs = new List<Drone>();
-                    if (request.HubDroneIds != null && request.HubDroneIds.Count >= 2)
-                    {
-                        hubs = relayDrones.Where(d => request.HubDroneIds.Contains(d.Id)).Take(2).ToList();
-                    }
-                    else
-                    {
-                        hubs = relayDrones.Take(2).ToList();
-                    }
-
-                    if (hubs.Count < 2)
-                    {
-                        response.ErrorMessage = "Dual-star topology requires at least 2 relay drones.";
-                        return response;
-                    }
-
-                    connectionsCreated = ConnectDronesToDualHub(dronesInHive, hubs[0].Id, hubs[1].Id, request.ConnectionWeight);
-                    break;
-
-                default:
-                    response.ErrorMessage = $"Unknown topology type: {request.TopologyType}. Supported: star, dual_star";
-                    return response;
+                    entryRelays.Add(relay.Id);
+                }
             }
 
+            if (!entryRelays.Any())
+            {
+                entryRelays.Add(relayDrones.First().Id);
+                if (relayDrones.Count > 1)
+                {
+                    entryRelays.Add(relayDrones[1].Id);
+                }
+            }
+
+            HiveInMemoryState.SetHiveEntryRelays(request.HiveId, entryRelays);
+
             response.Success = true;
-            response.ConnectionsCreated = connectionsCreated;
-            _logger.LogInformation("Connected {Count} drones to HiveMind using {TopologyType} topology",
-                dronesInHive.Count, request.TopologyType);
+            response.ConnectionsCreated = 0;
+            response.EntryRelays = entryRelays.ToList();
+            _logger.LogInformation("Hive {HiveId} entry relays set to: {Relays}",
+                request.HiveId, string.Join(", ", entryRelays));
 
             return response;
         }
@@ -494,6 +522,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
             // Build adjacency list and connection graph with weights
             var adjacency = new Dictionary<string, List<string>>();
             var connectionGraph = new Dictionary<string, List<ConnectionInfo>>();
+            var weightLookup = new Dictionary<string, Dictionary<string, double>>();
             var allWeights = new List<double>();
             int totalConnections = 0;
 
@@ -501,12 +530,14 @@ namespace DevOpsProject.HiveMind.Logic.Services
             {
                 adjacency[drone.Id] = new List<string>();
                 connectionGraph[drone.Id] = new List<ConnectionInfo>();
+                weightLookup[drone.Id] = new Dictionary<string, double>();
 
                 foreach (var connection in drone.Connections)
                 {
                     if (hiveDrones.Contains(connection.TargetDroneId))
                     {
                         adjacency[drone.Id].Add(connection.TargetDroneId);
+                        weightLookup[drone.Id][connection.TargetDroneId] = connection.Weight;
                         connectionGraph[drone.Id].Add(new ConnectionInfo
                         {
                             TargetDroneId = connection.TargetDroneId,
@@ -793,6 +824,14 @@ namespace DevOpsProject.HiveMind.Logic.Services
             return created;
         }
 
+        private readonly Random _random = new Random();
+        private double GetLinkWeight(double baseWeight)
+        {
+            var jitter = (_random.NextDouble() * 0.2) - 0.1; // +/-0.1
+            var w = baseWeight + jitter;
+            return Math.Clamp(w, 0.05, 0.99);
+        }
+
         private int ConnectDronesToHub(List<Drone> drones, string hubId, double weight)
         {
             int created = 0;
@@ -800,8 +839,9 @@ namespace DevOpsProject.HiveMind.Logic.Services
             {
                 if (drone.Id != hubId)
                 {
-                    AddConnection(drone.Id, hubId, weight);
-                    AddConnection(hubId, drone.Id, weight);
+                    var linkWeight = GetLinkWeight(weight);
+                    AddConnection(drone.Id, hubId, linkWeight);
+                    AddConnection(hubId, drone.Id, linkWeight);
                     created += 2;
                 }
             }
@@ -812,8 +852,9 @@ namespace DevOpsProject.HiveMind.Logic.Services
         {
             int created = 0;
             // Connect hubs to each other
-            AddConnection(hub1Id, hub2Id, weight);
-            AddConnection(hub2Id, hub1Id, weight);
+            var hubLinkWeight = GetLinkWeight(weight);
+            AddConnection(hub1Id, hub2Id, hubLinkWeight);
+            AddConnection(hub2Id, hub1Id, hubLinkWeight);
             created += 2;
 
             // Connect all drones to both hubs
@@ -821,10 +862,12 @@ namespace DevOpsProject.HiveMind.Logic.Services
             {
                 if (drone.Id != hub1Id && drone.Id != hub2Id)
                 {
-                    AddConnection(drone.Id, hub1Id, weight);
-                    AddConnection(hub1Id, drone.Id, weight);
-                    AddConnection(drone.Id, hub2Id, weight);
-                    AddConnection(hub2Id, drone.Id, weight);
+                    var linkWeight1 = GetLinkWeight(weight);
+                    var linkWeight2 = GetLinkWeight(weight);
+                    AddConnection(drone.Id, hub1Id, linkWeight1);
+                    AddConnection(hub1Id, drone.Id, linkWeight1);
+                    AddConnection(drone.Id, hub2Id, linkWeight2);
+                    AddConnection(hub2Id, drone.Id, linkWeight2);
                     created += 4;
                 }
             }
@@ -877,20 +920,31 @@ namespace DevOpsProject.HiveMind.Logic.Services
             }
         }
 
-        private static IReadOnlyCollection<string> BuildPath(string targetDroneId, IReadOnlyDictionary<string, string> parents)
+        private static (IReadOnlyList<string> nodes, IReadOnlyList<double> weights) BuildPathWithWeights(
+            string targetDroneId,
+            IReadOnlyDictionary<string, string> parents,
+            IReadOnlyDictionary<string, Dictionary<string, double>> weightLookup)
         {
-            var path = new List<string>();
+            var nodes = new List<string>();
+            var weights = new List<double>();
             var current = targetDroneId;
-            path.Add(current);
+            nodes.Add(current);
 
             while (parents.TryGetValue(current, out var parent))
             {
-                path.Add(parent);
+                var weight = 0d;
+                if (weightLookup.TryGetValue(parent, out var map) && map.TryGetValue(current, out var w))
+                {
+                    weight = w;
+                }
+
+                weights.Insert(0, weight);
+                nodes.Add(parent);
                 current = parent;
             }
 
-            path.Reverse();
-            return path;
+            nodes.Reverse();
+            return (nodes, weights);
         }
 
         #endregion

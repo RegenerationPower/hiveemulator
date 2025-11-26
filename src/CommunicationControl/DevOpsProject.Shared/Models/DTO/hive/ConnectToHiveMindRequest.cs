@@ -1,7 +1,9 @@
+using System.Text.Json.Serialization;
+
 namespace DevOpsProject.Shared.Models.DTO.hive
 {
     /// <summary>
-    /// Request to connect drones to HiveMind in star or dual-star topology
+    /// Request to register HiveMind entry relays for a Hive
     /// </summary>
     public class ConnectToHiveMindRequest
     {
@@ -11,19 +13,22 @@ namespace DevOpsProject.Shared.Models.DTO.hive
         public string HiveId { get; set; }
 
         /// <summary>
-        /// Topology type: "star" or "dual_star"
+        /// Optional list of relay drone IDs that should act as entry points to HiveMind.
+        /// If empty, HiveMind will auto-select available relay drones (up to two).
         /// </summary>
-        public string TopologyType { get; set; }
+        [JsonPropertyName("entryRelayIds")]
+        public List<string>? EntryRelayIds { get; set; }
 
         /// <summary>
-        /// Connection weight to HiveMind (default: 1.0)
+        /// Legacy property name maintained for backward compatibility (hubDroneIds).
+        /// Writing to this property populates EntryRelayIds.
         /// </summary>
-        public double ConnectionWeight { get; set; } = 1.0;
-
-        /// <summary>
-        /// For dual-star: IDs of two relay drones to use as hubs (optional, will be auto-selected if not provided)
-        /// </summary>
-        public List<string>? HubDroneIds { get; set; }
+        [JsonPropertyName("hubDroneIds")]
+        public List<string>? LegacyHubDroneIds
+        {
+            get => EntryRelayIds;
+            set => EntryRelayIds = value;
+        }
     }
 }
 

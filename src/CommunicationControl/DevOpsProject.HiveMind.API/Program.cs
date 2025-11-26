@@ -260,6 +260,45 @@ groupBuilder.MapPost("hives/{hiveId}/drones/batch-join", (string hiveId, [FromBo
     return Results.Ok(response);
 });
 
+groupBuilder.MapDelete("hives/{hiveId}/drones/{droneId}", (string hiveId, string droneId, [FromServices] IDroneCommandService commandService) =>
+{
+    var hive = HiveInMemoryState.GetHive(hiveId);
+    if (hive == null)
+    {
+        return Results.NotFound(new { message = $"Hive {hiveId} not found." });
+    }
+
+    var currentHiveId = HiveInMemoryState.GetDroneHive(droneId);
+    if (currentHiveId == null)
+    {
+        return Results.BadRequest(new { message = $"Drone {droneId} is not part of any Hive." });
+    }
+
+    if (!string.Equals(currentHiveId, hiveId, StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.BadRequest(new { message = $"Drone {droneId} belongs to Hive {currentHiveId}, not {hiveId}." });
+    }
+
+    var removed = commandService.RemoveDroneFromHive(hiveId, droneId);
+    return removed ? Results.NoContent() : Results.BadRequest(new { message = $"Failed to remove drone {droneId} from Hive {hiveId}." });
+});
+
+groupBuilder.MapPost("hives/{hiveId}/drones/batch-leave", (string hiveId, [FromBody] BatchRemoveDronesRequest request, [FromServices] IDroneCommandService commandService) =>
+{
+    if (request == null)
+    {
+        return Results.BadRequest(new { message = "Request cannot be null" });
+    }
+
+    var response = commandService.BatchRemoveDrones(hiveId, request);
+    if (response.Failed == response.TotalRequested && response.Removed == 0 && response.NotInHive == 0)
+    {
+        return Results.BadRequest(response);
+    }
+
+    return Results.Ok(response);
+});
+
 groupBuilder.MapGet("hives/{hiveId}/drones/{droneId}/connected", (string hiveId, string droneId, [FromServices] IDroneCommandService commandService) =>
 {
     var connectedDrones = commandService.GetConnectedDrones(hiveId, droneId);

@@ -74,6 +74,8 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 - `GET /api/v1/hives` – get all Hives.
 - `GET /api/v1/hives/{hiveId}` – get a specific Hive by ID.
 - `DELETE /api/v1/hives/{hiveId}` – delete a Hive and remove all its drones from the Hive.
+- `GET /api/v1/hive/identity` – show the Hive ID that HiveMind currently uses for telemetry/commands.
+- `POST /api/v1/hive/identity` – change the Hive ID at runtime. Request body: `{ "hiveId": "125", "reconnect": true }`. If `reconnect` is true (default), HiveMind stops telemetry, re-registers the hive with Communication Control, and restarts telemetry under the new ID. **Identity can only be updated to hives that already exist in HiveMind. Create the hive first via `POST /api/v1/hives` or the CommunicationControl proxy endpoint.**
 
 ### HiveMind Hive and Drone Communication API
 - `GET /api/v1/hives/{hiveId}/drones` – get all drones in a specific Hive (swarm group).
@@ -91,6 +93,20 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 ### HiveMind Connection Degradation API (Emulation)
 - `POST /api/v1/drones/connections/degrade` – degrade (change weight of) a connection between two drones. Used for emulating connection degradation. Request body: `{ "fromDroneId": "drone-001", "toDroneId": "drone-002", "newWeight": 0.3 }`. Weight must be between 0.0 and 1.0. Lower values indicate degraded connection. Updates both directions of the connection (bidirectional). **If `newWeight` is `0` or less, the connection is removed entirely (channel disappears).**
 - `POST /api/v1/drones/connections/batch-degrade` – degrade multiple connections at once. Request body: `{ "connections": [ { "fromDroneId": "...", "toDroneId": "...", "newWeight": 0.3 }, ... ] }`. See example file: `example_batch_degrade_connections.json`.
+
+### Communication Control ↔ HiveMind Integration API
+These endpoints live in `CommunicationControl.API` and proxy requests to HiveMind so that the entire mesh lifecycle can be observed directly in the Communication Control terminal (all responses are streamed from HiveMind).
+
+- `POST /api/v1/hivemind/drones/batch` – forward batch drone creation/update to HiveMind.
+- `POST /api/v1/hivemind/hives/{hiveId}/drones/batch-join` – add many drones to a Hive via Communication Control.
+- `POST /api/v1/hivemind/hives/{hiveId}/topology/rebuild` – rebuild mesh/star/dual_star topologies (proxied to HiveMind).
+- `POST /api/v1/hivemind/hives/{hiveId}/topology/connect-hivemind` – connect Hive to relay hubs through HiveMind.
+- `GET /api/v1/hivemind/hives/{hiveId}/topology/connectivity` – fetch connectivity snapshots (components, isolated groups, etc.).
+- `POST /api/v1/hivemind/drones/connections/degrade` – degrade/remove a connection using Communication Control.
+- `POST /api/v1/hivemind/drones/connections/batch-degrade` – batch version of connection degradation.
+- `POST /api/v1/hivemind/hives` – create a Hive directly inside HiveMind (proxy to `POST /api/v1/hives`). Use this before switching telemetry identity if the hive does not yet exist.
+
+> When HiveMind sends telemetry to Communication Control, the controller now automatically fetches a connectivity snapshot through this integration layer and logs the component summary, so both services participate in the workflow.
 
 ## Build
 

@@ -128,6 +128,23 @@ groupBuilder.MapPut("drones", ([FromBody] Drone drone, [FromServices] IDroneRela
     }
 });
 
+groupBuilder.MapPost("drones/batch", ([FromBody] BatchCreateDronesRequest request, [FromServices] IDroneRelayService relayService) =>
+{
+    if (request == null)
+    {
+        return Results.BadRequest(new { message = "Request cannot be null" });
+    }
+
+    var response = relayService.BatchCreateDrones(request);
+    
+    if (response.Failed > 0 && response.Created == 0 && response.Updated == 0)
+    {
+        return Results.BadRequest(response);
+    }
+
+    return Results.Ok(response);
+});
+
 groupBuilder.MapDelete("drones/{droneId}", (string droneId, [FromServices] IDroneRelayService relayService) =>
 {
     var removed = relayService.RemoveDrone(droneId);
@@ -202,6 +219,23 @@ groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/join", (string hiveId, str
     
     var response = commandService.JoinDrone(hiveId, joinRequest);
     return response.Success ? Results.Ok(response) : Results.BadRequest(response);
+});
+
+groupBuilder.MapPost("hives/{hiveId}/drones/batch-join", (string hiveId, [FromBody] BatchJoinDronesRequest request, [FromServices] IDroneCommandService commandService) =>
+{
+    if (request == null)
+    {
+        return Results.BadRequest(new { message = "Request cannot be null" });
+    }
+
+    var response = commandService.BatchJoinDrones(hiveId, request);
+    
+    if (response.Failed > 0 && response.Joined == 0 && response.AlreadyInHive == 0)
+    {
+        return Results.BadRequest(response);
+    }
+
+    return Results.Ok(response);
 });
 
 groupBuilder.MapGet("hives/{hiveId}/drones/{droneId}/connected", (string hiveId, string droneId, [FromServices] IDroneCommandService commandService) =>

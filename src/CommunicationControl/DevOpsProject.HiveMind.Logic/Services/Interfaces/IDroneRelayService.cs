@@ -8,6 +8,7 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
     {
         IReadOnlyCollection<Drone> GetSwarm();
         bool UpsertDrone(Drone drone);
+        BatchCreateDronesResponse BatchCreateDrones(BatchCreateDronesRequest request);
         bool RemoveDrone(string droneId);
         DroneConnectionAnalysisResponse AnalyzeConnection(string droneId, double minimumWeight = 0.5);
         MeshCommandResponse SendCommandViaMesh(string targetDroneId, DroneCommand command, double minimumWeight = 0.5);

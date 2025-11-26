@@ -157,6 +157,28 @@ groupBuilder.MapGet("drones/{droneId}/analysis", (string droneId, [FromQuery] do
     return Results.Ok(analysis);
 });
 
+groupBuilder.MapGet("hive/identity", () =>
+{
+    var hiveId = HiveInMemoryState.GetHiveId();
+    return Results.Ok(new { hiveId });
+});
+
+groupBuilder.MapPost("hive/identity", async ([FromBody] HiveIdentityUpdateRequest request, [FromServices] IHiveMindService hiveMindService) =>
+{
+    if (request == null || string.IsNullOrWhiteSpace(request.HiveId))
+    {
+        return Results.BadRequest(new { message = "HiveId is required" });
+    }
+
+    var success = await hiveMindService.UpdateHiveIdentityAsync(request.HiveId, request.Reconnect);
+    if (!success)
+    {
+        return Results.BadRequest(new { message = "Failed to update Hive identity. Ensure hiveId is provided." });
+    }
+
+    return Results.Ok(new { hiveId = request.HiveId.Trim(), reconnected = request.Reconnect });
+});
+
 // Hive management endpoints
 groupBuilder.MapPost("hives", ([FromBody] HiveCreateRequest request, [FromServices] IHiveService hiveService) =>
 {

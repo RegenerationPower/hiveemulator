@@ -27,14 +27,22 @@ namespace DevOpsProject.HiveMind.Logic.Services
             _communicationConfigurationOptions = communicationConfigurationOptions.Value;
         }
 
-        public async Task ConnectHive()
+        public async Task ConnectHive(string? overrideHiveId = null)
         {
+            var hiveId = ResolveHiveId(overrideHiveId);
+            if (string.IsNullOrWhiteSpace(hiveId))
+            {
+                throw new InvalidOperationException("Hive ID must be configured.");
+            }
+
+            HiveInMemoryState.SetHiveId(hiveId);
+
             var request = new HiveConnectRequest
             {
                 HiveSchema = _communicationConfigurationOptions.RequestSchema,
                 HiveIP = _communicationConfigurationOptions.HiveIP,
                 HivePort = _communicationConfigurationOptions.HivePort,
-                HiveID = _communicationConfigurationOptions.HiveID
+                HiveID = hiveId
             };
 
             var httpClient = _httpClientFactory.CreateClient("HiveConnectClient");
@@ -48,7 +56,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
             };
             var jsonContent = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
 
-            _logger.LogInformation("Attempting to connect Hive. Request: {@request}, URI: {uri}", request, uriBuilder.Uri);
+            _logger.LogInformation("Attempting to connect Hive {HiveId}. URI: {Uri}", hiveId, uriBuilder.Uri);
 
             var retryPolicy = Policy.HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
                 .WaitAndRetryAsync(
@@ -56,7 +64,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
                     retryAttempt => TimeSpan.FromSeconds(2),
                     (result, timeSpan, retryCount, context) =>
                     {
-                        _logger.LogWarning($"Connecting HiveID: {_communicationConfigurationOptions.HiveID}, retry attempt: {retryCount}. \nRequest URL: {uriBuilder.Uri}, request content: {jsonContent}");
+                        _logger.LogWarning("Connecting HiveID: {HiveId}, retry attempt: {Retry}. Request URL: {Uri}", hiveId, retryCount, uriBuilder.Uri);
                     });
 
             var response = await retryPolicy.ExecuteAsync(() => httpClient.PostAsync(uriBuilder.Uri, jsonContent));
@@ -76,16 +84,15 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 }
                 else
                 {
-                    _logger.LogInformation($"Connecting hive failed for ID: {request.HiveID}");
+                    _logger.LogInformation("Connecting hive failed for ID: {HiveId}", request.HiveID);
                     throw new Exception($"Failed to connect HiveID: {request.HiveID}");
                 }
             }
             else
             {
-                _logger.LogError($"Failed to connect hive, terminating process");
+                _logger.LogError("Failed to connect hive, terminating process");
                 Environment.Exit(1);
             }
-
         }
 
         public bool AddInterference(InterferenceModel interferenceModel)
@@ -108,7 +115,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
         {
             return new HiveTelemetryModel
             {
-                HiveID = _communicationConfigurationOptions.HiveID,
+                HiveID = HiveInMemoryState.GetHiveId() ?? _communicationConfigurationOptions.HiveID,
                 Location = HiveInMemoryState.CurrentLocation ?? default,
                 Height = 5, // TODO: Get from actual state
                 Speed = 15, // TODO: Get from actual state
@@ -117,12 +124,40 @@ namespace DevOpsProject.HiveMind.Logic.Services
             };
         }
 
+        public async Task<bool> UpdateHiveIdentityAsync(string hiveId, bool reconnect)
+        {
+            if (string.IsNullOrWhiteSpace(hiveId))
+            {
+                return false;
+            }
+
+            var normalized = hiveId.Trim();
+            var existingHive = HiveInMemoryState.GetHive(normalized);
+            if (existingHive == null)
+            {
+                _logger.LogWarning("Cannot update Hive identity to {HiveId} because this hive is not registered in HiveMind. Create the hive first.", normalized);
+                return false;
+            }
+
+            HiveInMemoryState.SetHiveId(normalized);
+            _logger.LogInformation("Hive identity updated to {HiveId}", normalized);
+
+            if (reconnect)
+            {
+                StopTelemetry();
+                await ConnectHive(normalized);
+            }
+
+            return true;
+        }
+
         #region private methods
         private void StartTelemetry()
         {
             if (HiveInMemoryState.IsTelemetryRunning) return;
             // TODO: Sending telemetry each N seconds
             _telemetryTimer = new Timer(SendTelemetry, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+            HiveInMemoryState.IsTelemetryRunning = true;
 
             _logger.LogInformation("Telemetry timer started.");
         }
@@ -143,7 +178,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
             {
                 var request = new HiveTelemetryRequest
                 {
-                    HiveID = _communicationConfigurationOptions.HiveID,
+                    HiveID = HiveInMemoryState.GetHiveId() ?? _communicationConfigurationOptions.HiveID,
                     Location = HiveInMemoryState.CurrentLocation ?? default,
                     // TODO: MOCKED FOR NOW
                     Height = 5,
@@ -171,6 +206,22 @@ namespace DevOpsProject.HiveMind.Logic.Services
             {
                 _logger.LogError("Error sending telemetry: {Message}", ex.Message);
             }
+        }
+
+        private string? ResolveHiveId(string? overrideHiveId = null)
+        {
+            if (!string.IsNullOrWhiteSpace(overrideHiveId))
+            {
+                return overrideHiveId.Trim();
+            }
+
+            var stateId = HiveInMemoryState.GetHiveId();
+            if (!string.IsNullOrWhiteSpace(stateId))
+            {
+                return stateId;
+            }
+
+            return _communicationConfigurationOptions.HiveID;
         }
         #endregion
     }

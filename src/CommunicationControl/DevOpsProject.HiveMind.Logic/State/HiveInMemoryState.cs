@@ -7,6 +7,7 @@ namespace DevOpsProject.HiveMind.Logic.State
 {
     public static class HiveInMemoryState
     {
+        private static readonly object _hiveIdLock = new();
         private static readonly object _operationalAreaLock = new();
         private static readonly object _telemetryLock = new();
         private static readonly object _movementLock = new();
@@ -30,6 +31,22 @@ namespace DevOpsProject.HiveMind.Logic.State
         private static readonly Dictionary<string, HashSet<string>> _hiveDrones = new(); // HiveID -> Set of Drone IDs
         private static readonly Dictionary<string, string> _droneHiveMapping = new(); // DroneID -> HiveID
         private static readonly Dictionary<string, Hive> _hives = new(); // HiveID -> Hive
+        private static string? _hiveId;
+        public static string? GetHiveId()
+        {
+            lock (_hiveIdLock)
+            {
+                return _hiveId;
+            }
+        }
+
+        public static void SetHiveId(string hiveId)
+        {
+            lock (_hiveIdLock)
+            {
+                _hiveId = hiveId;
+            }
+        }
 
         public static HiveOperationalArea OperationalArea
         {

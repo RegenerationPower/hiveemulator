@@ -11,12 +11,16 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
     public class HiveController : Controller
     {
         private readonly ICommunicationControlService _communicationControlService;
+        private readonly IHiveMindMeshIntegrationService? _meshIntegrationService;
         private readonly ILogger<HiveController> _logger;
 
-        public HiveController(ICommunicationControlService communicationControlService, ILogger<HiveController> logger)
+        public HiveController(ICommunicationControlService communicationControlService, 
+            ILogger<HiveController> logger, 
+            IHiveMindMeshIntegrationService? meshIntegrationService = null)
         {
             _communicationControlService = communicationControlService;
             _logger = logger;
+            _meshIntegrationService = meshIntegrationService;
         }
 
         [HttpPost("connect")]
@@ -53,7 +57,7 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
                 Speed = request.Speed,
                 Height = request.Height,
                 State = request.State,
-                Timestamp = DateTime.Now
+                Timestamp = DateTime.UtcNow
             };
 
             bool isHiveConnected = await _communicationControlService.IsHiveConnected(request.HiveID);
@@ -64,6 +68,11 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
                 {
                     Timestamp = telemetryUpdateTimestamp
                 };
+
+                if (_meshIntegrationService != null)
+                {
+                    await _meshIntegrationService.LogConnectivitySnapshotAsync(request.HiveID);
+                }
 
                 return Ok(telemetryResponse);
             }

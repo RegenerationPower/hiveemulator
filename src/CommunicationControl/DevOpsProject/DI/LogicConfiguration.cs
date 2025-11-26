@@ -8,8 +8,12 @@ namespace DevOpsProject.CommunicationControl.API.DI
         public static IServiceCollection AddCommunicationControlLogic(this IServiceCollection serviceCollection)
         {
             serviceCollection.AddTransient<ICommunicationControlService, CommunicationControlService>();
-            serviceCollection.AddTransient<ISpatialService, SpatialService>();
-
+            serviceCollection.AddScoped<ISpatialService, SpatialService>();
+            serviceCollection.AddScoped<IHiveManagementService, HiveManagementService>();
+            serviceCollection.AddScoped<IHiveCommandService, HiveCommandService>();
+            serviceCollection.AddScoped<ITelemetryService, TelemetryService>();
+            serviceCollection.AddScoped<IInterferenceManagementService, InterferenceManagementService>();
+            serviceCollection.AddScoped<IHiveMindMeshIntegrationService, HiveMindMeshIntegrationService>();
             return serviceCollection;
         }
     }

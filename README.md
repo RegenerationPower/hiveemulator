@@ -88,6 +88,10 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 - `POST /api/v1/hives/{hiveId}/topology/connect-hivemind` – connect all drones in a Hive to HiveMind using star or dual-star topology. Connects drones to relay drones (entry points to HiveMind). Request body: `{ "topologyType": "star|dual_star", "connectionWeight": 1.0, "hubDroneIds": ["relay-1", "relay-2"] }` (hubDroneIds optional, will auto-select if not provided). See example files: `example_topology_connect_hivemind_star.json`, `example_topology_connect_hivemind_dual_star.json`, `example_topology_connect_hivemind_dual_star_with_hubs.json`.
 - `GET /api/v1/hives/{hiveId}/topology/connectivity` – analyze connectivity of the swarm in a Hive. Returns information about connected components, isolated groups, and whether all drones are connected.
 
+### HiveMind Connection Degradation API (Emulation)
+- `POST /api/v1/drones/connections/degrade` – degrade (change weight of) a connection between two drones. Used for emulating connection degradation. Request body: `{ "fromDroneId": "drone-001", "toDroneId": "drone-002", "newWeight": 0.3 }`. Weight must be between 0.0 and 1.0. Lower values indicate degraded connection. Updates both directions of the connection (bidirectional). **If `newWeight` is `0` or less, the connection is removed entirely (channel disappears).**
+- `POST /api/v1/drones/connections/batch-degrade` – degrade multiple connections at once. Request body: `{ "connections": [ { "fromDroneId": "...", "toDroneId": "...", "newWeight": 0.3 }, ... ] }`. See example file: `example_batch_degrade_connections.json`.
+
 ## Build
 
 ### Map Clinet

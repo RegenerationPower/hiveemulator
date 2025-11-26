@@ -81,13 +81,15 @@ dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.cspr
 - `GET /api/v1/hives/{hiveId}/drones` – get all drones in a specific Hive (swarm group).
 - `POST /api/v1/hives/{hiveId}/drones/{droneId}/join` – allow a drone to join/connect to a specific Hive. The drone must be registered first via `PUT /api/v1/drones`. A drone cannot be in multiple Hives simultaneously.
 - `POST /api/v1/hives/{hiveId}/drones/batch-join` – add multiple drones to a Hive at once. Request body: `{ "droneIds": ["drone-001", "drone-002", ...] }`. Returns summary with counts of joined, already in hive, and failed drones. See `example_batch_join_hive.json` for a sample with 10 drones.
+- `DELETE /api/v1/hives/{hiveId}/drones/{droneId}` – remove a drone from a Hive so it can join another one. Clears its individual command queue.
+- `POST /api/v1/hives/{hiveId}/drones/batch-leave` – remove multiple drones from a Hive at once. Request body: `{ "droneIds": ["drone-001", "drone-002", ...] }`. Returns counts of removed, not-in-hive, and failed drones.
 - `GET /api/v1/hives/{hiveId}/drones/{droneId}/connected` – get information about drones connected to the specified drone within the same Hive (based on connection graph).
 - `POST /api/v1/hives/{hiveId}/commands` – send a command to all drones in a Hive. Individual commands for each drone are cleared and replaced with the new Hive command.
 - `POST /api/v1/hives/{hiveId}/drones/{droneId}/commands/mesh?minWeight=0.5` – send a command to a drone through the Mesh network using relay drones. Finds the shortest route with the best connection quality and sends relay commands to intermediate drones for forwarding. Returns route information including path, minimum link weight, hop count, and number of relays used.
 
-### HiveMind Topology Management API
+- ### HiveMind Topology Management API
 - `POST /api/v1/hives/{hiveId}/topology/rebuild` – rebuild topology between drones in a Hive. Supports `mesh` (full mesh - every drone connects to every other), `star` (one central hub), or `dual_star` (two hubs) topologies. Request body: `{ "topologyType": "mesh|star|dual_star", "defaultWeight": 0.8 }`. See example files: `example_topology_rebuild_mesh.json`, `example_topology_rebuild_star.json`, `example_topology_rebuild_dual_star.json`.
-- `POST /api/v1/hives/{hiveId}/topology/connect-hivemind` – connect all drones in a Hive to HiveMind using star or dual-star topology. Connects drones to relay drones (entry points to HiveMind). Request body: `{ "topologyType": "star|dual_star", "connectionWeight": 1.0, "hubDroneIds": ["relay-1", "relay-2"] }` (hubDroneIds optional, will auto-select if not provided). See example files: `example_topology_connect_hivemind_star.json`, `example_topology_connect_hivemind_dual_star.json`, `example_topology_connect_hivemind_dual_star_with_hubs.json`.
+- `POST /api/v1/hives/{hiveId}/topology/connect-hivemind` – register one or more relay drones as entry points between this Hive and HiveMind. This call **does not** modify the swarm’s connection graph; it only stores which relays HiveMind should start from when building mesh routes. Request body: `{ "entryRelayIds": ["relay-1", "relay-2"] }` (optional list; HiveMind auto-selects available relay drones if omitted).
 - `GET /api/v1/hives/{hiveId}/topology/connectivity` – analyze connectivity of the swarm in a Hive. Returns information about connected components, isolated groups, and whether all drones are connected.
 
 ### HiveMind Connection Degradation API (Emulation)

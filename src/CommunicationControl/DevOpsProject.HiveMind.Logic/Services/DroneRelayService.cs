@@ -39,6 +39,68 @@ namespace DevOpsProject.HiveMind.Logic.Services
             return isNew;
         }
 
+        public BatchCreateDronesResponse BatchCreateDrones(BatchCreateDronesRequest request)
+        {
+            var response = new BatchCreateDronesResponse
+            {
+                TotalRequested = request?.Drones?.Count ?? 0
+            };
+
+            if (request == null || request.Drones == null || !request.Drones.Any())
+            {
+                response.Errors = new[] { "Request cannot be null and must contain at least one drone" };
+                return response;
+            }
+
+            var createdIds = new List<string>();
+            var updatedIds = new List<string>();
+            var errors = new List<string>();
+
+            foreach (var drone in request.Drones)
+            {
+                if (drone == null)
+                {
+                    errors.Add("One or more drones in the batch are null");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(drone.Id))
+                {
+                    errors.Add("One or more drones have empty or null ID");
+                    continue;
+                }
+
+                try
+                {
+                    bool isNew = UpsertDrone(drone);
+                    if (isNew)
+                    {
+                        createdIds.Add(drone.Id);
+                    }
+                    else
+                    {
+                        updatedIds.Add(drone.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to create/update drone {drone.Id}: {ex.Message}");
+                }
+            }
+
+            response.Created = createdIds.Count;
+            response.Updated = updatedIds.Count;
+            response.Failed = errors.Count;
+            response.CreatedDroneIds = createdIds;
+            response.UpdatedDroneIds = updatedIds;
+            response.Errors = errors;
+
+            _logger.LogInformation("Batch create completed: {Created} created, {Updated} updated, {Failed} failed out of {Total}",
+                response.Created, response.Updated, response.Failed, response.TotalRequested);
+
+            return response;
+        }
+
         public bool RemoveDrone(string droneId)
         {
             // Remove from hive first
@@ -429,16 +491,29 @@ namespace DevOpsProject.HiveMind.Logic.Services
             var swarm = HiveInMemoryState.Drones;
             var dronesInHive = swarm.Where(d => hiveDrones.Contains(d.Id)).ToList();
 
-            // Build adjacency list
+            // Build adjacency list and connection graph with weights
             var adjacency = new Dictionary<string, List<string>>();
+            var connectionGraph = new Dictionary<string, List<ConnectionInfo>>();
+            var allWeights = new List<double>();
+            int totalConnections = 0;
+
             foreach (var drone in dronesInHive)
             {
                 adjacency[drone.Id] = new List<string>();
+                connectionGraph[drone.Id] = new List<ConnectionInfo>();
+
                 foreach (var connection in drone.Connections)
                 {
                     if (hiveDrones.Contains(connection.TargetDroneId))
                     {
                         adjacency[drone.Id].Add(connection.TargetDroneId);
+                        connectionGraph[drone.Id].Add(new ConnectionInfo
+                        {
+                            TargetDroneId = connection.TargetDroneId,
+                            Weight = connection.Weight
+                        });
+                        allWeights.Add(connection.Weight);
+                        totalConnections++;
                     }
                 }
             }
@@ -477,10 +552,48 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 components.Add(component);
             }
 
+            // Build component info
+            var componentInfos = new List<ComponentInfo>();
+            for (int i = 0; i < components.Count; i++)
+            {
+                var component = components[i];
+                int componentConnections = 0;
+                
+                // Count connections within this component
+                foreach (var droneId in component)
+                {
+                    if (adjacency.TryGetValue(droneId, out var neighbors))
+                    {
+                        componentConnections += neighbors.Count(d => component.Contains(d));
+                    }
+                }
+
+                componentInfos.Add(new ComponentInfo
+                {
+                    ComponentId = i + 1,
+                    DroneCount = component.Count,
+                    DroneIds = component,
+                    ConnectionCount = componentConnections / 2 // Divide by 2 because each connection is counted twice (bidirectional)
+                });
+            }
+
             response.ConnectedComponents = components.Count;
             response.IsFullyConnected = components.Count == 1;
             response.LargestComponentSize = components.Any() ? components.Max(c => c.Count) : 0;
             response.IsolatedGroups = components.Where(c => c.Count < response.TotalDrones).Select(c => (IReadOnlyCollection<string>)c.ToList()).ToList();
+            response.Components = componentInfos;
+            response.TotalConnections = totalConnections / 2; // Divide by 2 because each connection is bidirectional
+            response.ConnectionGraph = connectionGraph.ToDictionary(
+                kvp => kvp.Key,
+                kvp => (IReadOnlyCollection<ConnectionInfo>)kvp.Value
+            );
+
+            if (allWeights.Any())
+            {
+                response.AverageConnectionWeight = allWeights.Average();
+                response.MinimumConnectionWeight = allWeights.Min();
+                response.MaximumConnectionWeight = allWeights.Max();
+            }
 
             return response;
         }
@@ -490,13 +603,24 @@ namespace DevOpsProject.HiveMind.Logic.Services
         private int RemoveAllConnections(List<Drone> drones)
         {
             int removed = 0;
+            var hiveDroneIds = drones.Select(d => d.Id).ToHashSet();
+            
             foreach (var drone in drones)
             {
                 var originalDrone = HiveInMemoryState.GetDrone(drone.Id);
                 if (originalDrone != null && originalDrone.Connections.Any())
                 {
-                    removed += originalDrone.Connections.Count;
-                    originalDrone.Connections.Clear();
+                    // Remove only connections to other drones in the Hive
+                    var connectionsToRemove = originalDrone.Connections
+                        .Where(c => hiveDroneIds.Contains(c.TargetDroneId))
+                        .ToList();
+                    
+                    foreach (var connection in connectionsToRemove)
+                    {
+                        originalDrone.Connections.Remove(connection);
+                        removed++;
+                    }
+                    
                     HiveInMemoryState.UpsertDrone(originalDrone);
                 }
             }

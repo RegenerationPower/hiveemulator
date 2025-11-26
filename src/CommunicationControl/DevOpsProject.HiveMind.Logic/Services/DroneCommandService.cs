@@ -109,6 +109,115 @@ namespace DevOpsProject.HiveMind.Logic.Services
             };
         }
 
+        public BatchJoinDronesResponse BatchJoinDrones(string hiveId, BatchJoinDronesRequest request)
+        {
+            var response = new BatchJoinDronesResponse
+            {
+                HiveId = hiveId,
+                TotalRequested = request?.DroneIds?.Count ?? 0
+            };
+
+            if (string.IsNullOrWhiteSpace(hiveId))
+            {
+                response.Errors = new[] { new BatchJoinError { DroneId = "", ErrorMessage = "Invalid Hive ID" } };
+                return response;
+            }
+
+            if (request == null || request.DroneIds == null || !request.DroneIds.Any())
+            {
+                response.Errors = new[] { new BatchJoinError { DroneId = "", ErrorMessage = "Request cannot be null and must contain at least one drone ID" } };
+                return response;
+            }
+
+            // Check if Hive exists
+            var hive = HiveInMemoryState.GetHive(hiveId);
+            if (hive == null)
+            {
+                response.Errors = request.DroneIds.Select(id => new BatchJoinError
+                {
+                    DroneId = id,
+                    ErrorMessage = $"Hive {hiveId} does not exist. Please create the Hive first."
+                }).ToList();
+                response.Failed = response.TotalRequested;
+                return response;
+            }
+
+            var joinedIds = new List<string>();
+            var alreadyInHiveIds = new List<string>();
+            var errors = new List<BatchJoinError>();
+
+            foreach (var droneId in request.DroneIds)
+            {
+                if (string.IsNullOrWhiteSpace(droneId))
+                {
+                    errors.Add(new BatchJoinError
+                    {
+                        DroneId = "",
+                        ErrorMessage = "Empty drone ID in request"
+                    });
+                    continue;
+                }
+
+                // Check if drone is registered
+                var existingDrone = HiveInMemoryState.GetDrone(droneId);
+                if (existingDrone == null)
+                {
+                    errors.Add(new BatchJoinError
+                    {
+                        DroneId = droneId,
+                        ErrorMessage = $"Drone {droneId} is not registered in the swarm. Please register the drone first."
+                    });
+                    continue;
+                }
+
+                // Check if drone is already in another hive
+                var currentHiveId = HiveInMemoryState.GetDroneHive(droneId);
+                if (currentHiveId != null && currentHiveId != hiveId)
+                {
+                    errors.Add(new BatchJoinError
+                    {
+                        DroneId = droneId,
+                        ErrorMessage = $"Drone {droneId} is already connected to Hive {currentHiveId}. Cannot join Hive {hiveId}."
+                    });
+                    continue;
+                }
+
+                // Add drone to this hive
+                bool added = HiveInMemoryState.AddDroneToHive(hiveId, droneId);
+                if (!added && currentHiveId == hiveId)
+                {
+                    // Already in this hive
+                    alreadyInHiveIds.Add(droneId);
+                    _logger.LogInformation("Drone {DroneId} is already in Hive {HiveId}", droneId, hiveId);
+                }
+                else if (added)
+                {
+                    joinedIds.Add(droneId);
+                    _logger.LogInformation("Drone {DroneId} successfully joined Hive {HiveId}", droneId, hiveId);
+                }
+                else
+                {
+                    errors.Add(new BatchJoinError
+                    {
+                        DroneId = droneId,
+                        ErrorMessage = $"Failed to add drone {droneId} to Hive {hiveId}"
+                    });
+                }
+            }
+
+            response.Joined = joinedIds.Count;
+            response.AlreadyInHive = alreadyInHiveIds.Count;
+            response.Failed = errors.Count;
+            response.JoinedDroneIds = joinedIds;
+            response.AlreadyInHiveDroneIds = alreadyInHiveIds;
+            response.Errors = errors;
+
+            _logger.LogInformation("Batch join completed for Hive {HiveId}: {Joined} joined, {AlreadyInHive} already in hive, {Failed} failed out of {Total}",
+                hiveId, response.Joined, response.AlreadyInHive, response.Failed, response.TotalRequested);
+
+            return response;
+        }
+
         public IReadOnlyCollection<Drone> GetConnectedDrones(string hiveId, string droneId)
         {
             var drone = HiveInMemoryState.GetDrone(droneId);

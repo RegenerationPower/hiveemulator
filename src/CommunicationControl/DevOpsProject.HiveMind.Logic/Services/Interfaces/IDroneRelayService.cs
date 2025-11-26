@@ -15,6 +15,8 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
         TopologyRebuildResponse RebuildTopology(TopologyRebuildRequest request);
         TopologyRebuildResponse ConnectToHiveMind(ConnectToHiveMindRequest request);
         SwarmConnectivityResponse AnalyzeSwarmConnectivity(string hiveId);
+        DegradeConnectionResponse DegradeConnection(DegradeConnectionRequest request);
+        BatchDegradeConnectionsResponse BatchDegradeConnections(BatchDegradeConnectionsRequest request);
     }
 }
 

@@ -11,6 +11,8 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
         BatchJoinDronesResponse BatchJoinDrones(string hiveId, BatchJoinDronesRequest request);
         IReadOnlyCollection<Drone> GetConnectedDrones(string hiveId, string droneId);
         IReadOnlyCollection<Drone> GetHiveDrones(string hiveId);
+        bool RemoveDroneFromHive(string hiveId, string droneId);
+        BatchRemoveDronesResponse BatchRemoveDrones(string hiveId, BatchRemoveDronesRequest request);
         DroneCommand? GetNextCommand(string droneId);
         IReadOnlyCollection<DroneCommand> GetAllCommands(string droneId);
         void SendCommand(DroneCommand command);

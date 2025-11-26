@@ -5,6 +5,13 @@ using System.Linq;
 
 namespace DevOpsProject.HiveMind.Logic.State
 {
+    public enum HiveMembershipResult
+    {
+        Added,
+        AlreadyInTargetHive,
+        InAnotherHive
+    }
+
     public static class HiveInMemoryState
     {
         private static readonly object _hiveIdLock = new();
@@ -31,6 +38,7 @@ namespace DevOpsProject.HiveMind.Logic.State
         private static readonly Dictionary<string, HashSet<string>> _hiveDrones = new(); // HiveID -> Set of Drone IDs
         private static readonly Dictionary<string, string> _droneHiveMapping = new(); // DroneID -> HiveID
         private static readonly Dictionary<string, Hive> _hives = new(); // HiveID -> Hive
+        private static readonly Dictionary<string, HashSet<string>> _hiveEntryRelays = new(); // HiveID -> Relay IDs
         private static string? _hiveId;
         public static string? GetHiveId()
         {
@@ -288,7 +296,7 @@ namespace DevOpsProject.HiveMind.Logic.State
             }
         }
 
-        public static bool AddDroneToHive(string hiveId, string droneId)
+        public static HiveMembershipResult AddDroneToHive(string hiveId, string droneId)
         {
             lock (_hiveDroneLock)
             {
@@ -298,10 +306,10 @@ namespace DevOpsProject.HiveMind.Logic.State
                     if (existingHiveId == hiveId)
                     {
                         // Already in this hive
-                        return true;
+                        return HiveMembershipResult.AlreadyInTargetHive;
                     }
                     // Drone is in another hive
-                    return false;
+                    return HiveMembershipResult.InAnotherHive;
                 }
 
                 // Add drone to hive
@@ -311,7 +319,7 @@ namespace DevOpsProject.HiveMind.Logic.State
                 }
                 _hiveDrones[hiveId].Add(droneId);
                 _droneHiveMapping[droneId] = hiveId;
-                return true;
+                return HiveMembershipResult.Added;
             }
         }
 
@@ -354,6 +362,26 @@ namespace DevOpsProject.HiveMind.Logic.State
             lock (_hiveDroneLock)
             {
                 return _droneHiveMapping.TryGetValue(droneId, out var hiveId) ? hiveId : null;
+            }
+        }
+
+        public static void SetHiveEntryRelays(string hiveId, IEnumerable<string> relayIds)
+        {
+            lock (_hiveDroneLock)
+            {
+                _hiveEntryRelays[hiveId] = relayIds.Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id.Trim()).ToHashSet();
+            }
+        }
+
+        public static IReadOnlyCollection<string> GetHiveEntryRelays(string hiveId)
+        {
+            lock (_hiveDroneLock)
+            {
+                if (_hiveEntryRelays.TryGetValue(hiveId, out var relays))
+                {
+                    return relays.ToList();
+                }
+                return Array.Empty<string>();
             }
         }
 

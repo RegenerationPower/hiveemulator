@@ -31,6 +31,11 @@ namespace DevOpsProject.Shared.Models.DTO.hive
         public int ConnectionsRemoved { get; set; }
 
         /// <summary>
+        /// Entry relay IDs registered during operations such as connect-hivemind.
+        /// </summary>
+        public IReadOnlyCollection<string> EntryRelays { get; set; } = Array.Empty<string>();
+
+        /// <summary>
         /// Error message if rebuild failed
         /// </summary>
         public string? ErrorMessage { get; set; }

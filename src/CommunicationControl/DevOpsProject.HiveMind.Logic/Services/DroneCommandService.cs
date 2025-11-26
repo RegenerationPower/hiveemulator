@@ -82,11 +82,10 @@ namespace DevOpsProject.HiveMind.Logic.Services
             }
 
             // Add drone to this hive
-            bool added = HiveInMemoryState.AddDroneToHive(hiveId, request.DroneId);
-            if (!added && currentHiveId == hiveId)
+            var membership = HiveInMemoryState.AddDroneToHive(hiveId, request.DroneId);
+            if (membership == HiveMembershipResult.AlreadyInTargetHive)
             {
-                // Already in this hive
-                _logger.LogInformation("Drone {DroneId} ({DroneName}) is already in Hive {HiveId}", 
+                _logger.LogInformation("Drone {DroneId} ({DroneName}) is already in Hive {HiveId}",
                     request.DroneId, request.DroneName ?? "Unnamed", hiveId);
                 return new DroneJoinResponse
                 {
@@ -97,7 +96,17 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 };
             }
 
-            _logger.LogInformation("Drone {DroneId} ({DroneName}) successfully joined Hive {HiveId}", 
+            if (membership == HiveMembershipResult.InAnotherHive)
+            {
+                return new DroneJoinResponse
+                {
+                    Success = false,
+                    Message = $"Drone {request.DroneId} is already connected to another Hive.",
+                    Timestamp = DateTime.UtcNow
+                };
+            }
+
+            _logger.LogInformation("Drone {DroneId} ({DroneName}) successfully joined Hive {HiveId}",
                 request.DroneId, request.DroneName ?? "Unnamed", hiveId);
 
             return new DroneJoinResponse
@@ -183,25 +192,24 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 }
 
                 // Add drone to this hive
-                bool added = HiveInMemoryState.AddDroneToHive(hiveId, droneId);
-                if (!added && currentHiveId == hiveId)
+                var membership = HiveInMemoryState.AddDroneToHive(hiveId, droneId);
+                switch (membership)
                 {
-                    // Already in this hive
-                    alreadyInHiveIds.Add(droneId);
-                    _logger.LogInformation("Drone {DroneId} is already in Hive {HiveId}", droneId, hiveId);
-                }
-                else if (added)
-                {
-                    joinedIds.Add(droneId);
-                    _logger.LogInformation("Drone {DroneId} successfully joined Hive {HiveId}", droneId, hiveId);
-                }
-                else
-                {
-                    errors.Add(new BatchJoinError
-                    {
-                        DroneId = droneId,
-                        ErrorMessage = $"Failed to add drone {droneId} to Hive {hiveId}"
-                    });
+                    case HiveMembershipResult.AlreadyInTargetHive:
+                        alreadyInHiveIds.Add(droneId);
+                        _logger.LogInformation("Drone {DroneId} is already in Hive {HiveId}", droneId, hiveId);
+                        break;
+                    case HiveMembershipResult.Added:
+                        joinedIds.Add(droneId);
+                        _logger.LogInformation("Drone {DroneId} successfully joined Hive {HiveId}", droneId, hiveId);
+                        break;
+                    case HiveMembershipResult.InAnotherHive:
+                        errors.Add(new BatchJoinError
+                        {
+                            DroneId = droneId,
+                            ErrorMessage = $"Drone {droneId} is already connected to another Hive."
+                        });
+                        break;
                 }
             }
 
@@ -256,6 +264,154 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
             _logger.LogInformation("Requested drones for Hive {HiveId}. Found {Count} drones.", hiveId, drones.Count);
             return drones;
+        }
+
+        public bool RemoveDroneFromHive(string hiveId, string droneId)
+        {
+            if (string.IsNullOrWhiteSpace(hiveId) || string.IsNullOrWhiteSpace(droneId))
+            {
+                return false;
+            }
+
+            var hive = HiveInMemoryState.GetHive(hiveId);
+            if (hive == null)
+            {
+                _logger.LogWarning("Attempted to remove drone {DroneId} from unknown Hive {HiveId}", droneId, hiveId);
+                return false;
+            }
+
+            var currentHiveId = HiveInMemoryState.GetDroneHive(droneId);
+            if (currentHiveId == null)
+            {
+                _logger.LogWarning("Attempted to remove drone {DroneId} from Hive {HiveId}, but drone is not in any Hive.", droneId, hiveId);
+                return false;
+            }
+
+            if (!string.Equals(currentHiveId, hiveId, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Attempted to remove drone {DroneId} from Hive {HiveId}, but drone belongs to Hive {CurrentHiveId}.", droneId, hiveId, currentHiveId);
+                return false;
+            }
+
+            var removed = HiveInMemoryState.RemoveDroneFromHive(droneId);
+            if (removed)
+            {
+                HiveInMemoryState.ClearDroneCommands(droneId);
+                _logger.LogInformation("Drone {DroneId} removed from Hive {HiveId}", droneId, hiveId);
+            }
+
+            return removed;
+        }
+
+        public BatchRemoveDronesResponse BatchRemoveDrones(string hiveId, BatchRemoveDronesRequest request)
+        {
+            var response = new BatchRemoveDronesResponse
+            {
+                HiveId = hiveId,
+                TotalRequested = request?.DroneIds?.Count ?? 0
+            };
+
+            if (string.IsNullOrWhiteSpace(hiveId))
+            {
+                response.Errors = new[]
+                {
+                    new BatchRemoveError
+                    {
+                        DroneId = "",
+                        ErrorMessage = "Invalid Hive ID"
+                    }
+                };
+                response.Failed = response.TotalRequested;
+                return response;
+            }
+
+            if (request == null || request.DroneIds == null || !request.DroneIds.Any())
+            {
+                response.Errors = new[]
+                {
+                    new BatchRemoveError
+                    {
+                        DroneId = "",
+                        ErrorMessage = "Request cannot be null and must contain at least one drone ID"
+                    }
+                };
+                response.Failed = response.TotalRequested;
+                return response;
+            }
+
+            var hive = HiveInMemoryState.GetHive(hiveId);
+            if (hive == null)
+            {
+                response.Errors = request.DroneIds.Select(id => new BatchRemoveError
+                {
+                    DroneId = id,
+                    ErrorMessage = $"Hive {hiveId} does not exist."
+                }).ToList();
+                response.Failed = response.TotalRequested;
+                return response;
+            }
+
+            var removedIds = new List<string>();
+            var notInHiveIds = new List<string>();
+            var errors = new List<BatchRemoveError>();
+
+            foreach (var droneId in request.DroneIds)
+            {
+                if (string.IsNullOrWhiteSpace(droneId))
+                {
+                    errors.Add(new BatchRemoveError
+                    {
+                        DroneId = "",
+                        ErrorMessage = "Encountered empty drone ID in request."
+                    });
+                    continue;
+                }
+
+                var existingDrone = HiveInMemoryState.GetDrone(droneId);
+                if (existingDrone == null)
+                {
+                    errors.Add(new BatchRemoveError
+                    {
+                        DroneId = droneId,
+                        ErrorMessage = $"Drone {droneId} is not registered in the swarm."
+                    });
+                    continue;
+                }
+
+                var currentHiveId = HiveInMemoryState.GetDroneHive(droneId);
+                if (currentHiveId == null || !string.Equals(currentHiveId, hiveId, StringComparison.OrdinalIgnoreCase))
+                {
+                    notInHiveIds.Add(droneId);
+                    continue;
+                }
+
+                if (HiveInMemoryState.RemoveDroneFromHive(droneId))
+                {
+                    HiveInMemoryState.ClearDroneCommands(droneId);
+                    removedIds.Add(droneId);
+                    _logger.LogInformation("Drone {DroneId} removed from Hive {HiveId}", droneId, hiveId);
+                }
+                else
+                {
+                    errors.Add(new BatchRemoveError
+                    {
+                        DroneId = droneId,
+                        ErrorMessage = $"Failed to remove drone {droneId} from Hive {hiveId}"
+                    });
+                }
+            }
+
+            response.Removed = removedIds.Count;
+            response.NotInHive = notInHiveIds.Count;
+            response.Failed = errors.Count;
+            response.RemovedDroneIds = removedIds;
+            response.NotInHiveDroneIds = notInHiveIds;
+            response.Errors = errors;
+
+            _logger.LogInformation("Batch removal for Hive {HiveId}: Removed={Removed}, NotInHive={NotInHive}, Failed={Failed}, Total={Total}",
+                hiveId, response.Removed, response.NotInHive, response.Failed, response.TotalRequested);
+
+            return response;
         }
 
         public DroneCommand? GetNextCommand(string droneId)

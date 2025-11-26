@@ -18,7 +18,12 @@ namespace DevOpsProject.Shared.Models.DTO.hive
         /// <summary>
         /// The route path used for delivery
         /// </summary>
-        public IReadOnlyCollection<string> RoutePath { get; set; }
+        public IReadOnlyCollection<string> RoutePath { get; set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Weights of each connection along the route (aligned with RoutePath segments)
+        /// </summary>
+        public IReadOnlyCollection<double> RouteWeights { get; set; } = Array.Empty<double>();
 
         /// <summary>
         /// Minimum link weight on the route (quality of connection)

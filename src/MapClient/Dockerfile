@@ -1,8 +1,17 @@
-FROM nginx:alpine
+FROM node:20-alpine
 
-COPY ./dist /usr/share/nginx/html
+# Робоча директорія всередині контейнера
+WORKDIR /app
 
-RUN rm -f /usr/share/nginx/html/config.json
+# Спочатку тільки package-файли — кеш інсталяції залежностей
+COPY package.json package-lock.json* ./
+RUN npm install
 
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# Потім — увесь код
+COPY . .
+
+# Vite-сервер слухає на 3000 (як у твоєму vite.config.js)
+EXPOSE 3000
+
+# Запуск dev-сервера Vite
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]

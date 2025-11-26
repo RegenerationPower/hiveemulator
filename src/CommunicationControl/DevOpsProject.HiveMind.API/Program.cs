@@ -279,6 +279,29 @@ groupBuilder.MapGet("hives/{hiveId}/topology/connectivity", (string hiveId, [Fro
     return Results.Ok(response);
 });
 
+// Connection degradation endpoints (for emulating connection degradation)
+groupBuilder.MapPost("drones/connections/degrade", ([FromBody] DegradeConnectionRequest request, [FromServices] IDroneRelayService relayService) =>
+{
+    if (request == null)
+    {
+        return Results.BadRequest(new { message = "Request cannot be null" });
+    }
+
+    var response = relayService.DegradeConnection(request);
+    return response.Success ? Results.Ok(response) : Results.BadRequest(response);
+});
+
+groupBuilder.MapPost("drones/connections/batch-degrade", ([FromBody] BatchDegradeConnectionsRequest request, [FromServices] IDroneRelayService relayService) =>
+{
+    if (request == null)
+    {
+        return Results.BadRequest(new { message = "Request cannot be null" });
+    }
+
+    var response = relayService.BatchDegradeConnections(request);
+    return Results.Ok(response);
+});
+
 // Mesh command endpoint - send command through mesh network (only for drones in Hive)
 groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/commands/mesh", (string hiveId, string droneId, [FromBody] DroneCommand command, [FromQuery] double? minWeight, [FromServices] IDroneRelayService relayService) =>
 {

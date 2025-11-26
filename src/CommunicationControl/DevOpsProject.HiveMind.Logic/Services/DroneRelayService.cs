@@ -598,6 +598,119 @@ namespace DevOpsProject.HiveMind.Logic.Services
             return response;
         }
 
+        public DegradeConnectionResponse DegradeConnection(DegradeConnectionRequest request)
+        {
+            var response = new DegradeConnectionResponse
+            {
+                FromDroneId = request.FromDroneId,
+                ToDroneId = request.ToDroneId,
+                NewWeight = request.NewWeight,
+                Success = false
+            };
+
+            if (string.IsNullOrWhiteSpace(request.FromDroneId) || string.IsNullOrWhiteSpace(request.ToDroneId))
+            {
+                response.ErrorMessage = "FromDroneId and ToDroneId are required.";
+                return response;
+            }
+
+            if (request.NewWeight < 0.0 || request.NewWeight > 1.0)
+            {
+                response.ErrorMessage = "NewWeight must be between 0.0 and 1.0.";
+                return response;
+            }
+
+            // Get the source drone
+            var fromDrone = HiveInMemoryState.GetDrone(request.FromDroneId);
+            if (fromDrone == null)
+            {
+                response.ErrorMessage = $"Drone {request.FromDroneId} not found.";
+                return response;
+            }
+
+            // Check if connection exists
+            var connection = fromDrone.Connections.FirstOrDefault(c => c.TargetDroneId == request.ToDroneId);
+            if (connection == null)
+            {
+                response.ErrorMessage = $"Connection from {request.FromDroneId} to {request.ToDroneId} does not exist.";
+                return response;
+            }
+
+            // Store previous weight
+            response.PreviousWeight = connection.Weight;
+
+            if (request.NewWeight <= 0)
+            {
+                RemoveConnection(request.FromDroneId, request.ToDroneId);
+                RemoveConnection(request.ToDroneId, request.FromDroneId);
+                response.NewWeight = 0;
+                response.Success = true;
+                _logger.LogInformation("Connection removed due to zero weight: {FromDroneId} <-> {ToDroneId}", request.FromDroneId, request.ToDroneId);
+                return response;
+            }
+
+            // Update connection weight
+            connection.Weight = request.NewWeight;
+            HiveInMemoryState.UpsertDrone(fromDrone);
+
+            // Also update reverse connection if it exists (bidirectional)
+            var toDrone = HiveInMemoryState.GetDrone(request.ToDroneId);
+            if (toDrone != null)
+            {
+                var reverseConnection = toDrone.Connections.FirstOrDefault(c => c.TargetDroneId == request.FromDroneId);
+                if (reverseConnection != null)
+                {
+                    reverseConnection.Weight = request.NewWeight;
+                    HiveInMemoryState.UpsertDrone(toDrone);
+                }
+            }
+
+            response.Success = true;
+            _logger.LogInformation("Connection degraded: {FromDroneId} -> {ToDroneId}, weight changed from {OldWeight} to {NewWeight}",
+                request.FromDroneId, request.ToDroneId, response.PreviousWeight, request.NewWeight);
+
+            return response;
+        }
+
+        public BatchDegradeConnectionsResponse BatchDegradeConnections(BatchDegradeConnectionsRequest request)
+        {
+            var response = new BatchDegradeConnectionsResponse
+            {
+                TotalRequested = request?.Connections?.Count ?? 0
+            };
+
+            if (request == null || request.Connections == null || !request.Connections.Any())
+            {
+                return response;
+            }
+
+            var successful = new List<DegradeConnectionResponse>();
+            var failed = new List<DegradeConnectionResponse>();
+
+            foreach (var connectionRequest in request.Connections)
+            {
+                var result = DegradeConnection(connectionRequest);
+                if (result.Success)
+                {
+                    successful.Add(result);
+                }
+                else
+                {
+                    failed.Add(result);
+                }
+            }
+
+            response.Succeeded = successful.Count;
+            response.Failed = failed.Count;
+            response.Successful = successful;
+            response.FailedResults = failed;
+
+            _logger.LogInformation("Batch degradation completed: {Succeeded} succeeded, {Failed} failed out of {Total}",
+                response.Succeeded, response.Failed, response.TotalRequested);
+
+            return response;
+        }
+
         #region Private Helper Methods
 
         private int RemoveAllConnections(List<Drone> drones)
@@ -720,6 +833,12 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
         private void AddConnection(string fromDroneId, string toDroneId, double weight)
         {
+            if (weight <= 0)
+            {
+                RemoveConnection(fromDroneId, toDroneId);
+                return;
+            }
+
             var drone = HiveInMemoryState.GetDrone(fromDroneId);
             if (drone == null)
                 return;
@@ -740,6 +859,22 @@ namespace DevOpsProject.HiveMind.Logic.Services
             }
 
             HiveInMemoryState.UpsertDrone(drone);
+        }
+
+        private void RemoveConnection(string fromDroneId, string toDroneId)
+        {
+            var drone = HiveInMemoryState.GetDrone(fromDroneId);
+            if (drone == null)
+            {
+                return;
+            }
+
+            int removed = drone.Connections.RemoveAll(c => c.TargetDroneId == toDroneId);
+            if (removed > 0)
+            {
+                HiveInMemoryState.UpsertDrone(drone);
+                _logger.LogInformation("Connection removed: {FromDroneId} -> {ToDroneId}", fromDroneId, toDroneId);
+            }
         }
 
         private static IReadOnlyCollection<string> BuildPath(string targetDroneId, IReadOnlyDictionary<string, string> parents)

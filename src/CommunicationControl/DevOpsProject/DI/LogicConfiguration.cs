@@ -9,10 +9,11 @@ namespace DevOpsProject.CommunicationControl.API.DI
         {
             serviceCollection.AddTransient<ICommunicationControlService, CommunicationControlService>();
             serviceCollection.AddScoped<ISpatialService, SpatialService>();
-            serviceCollection.AddScoped<IHiveManagementService, HiveManagementService>();
-            serviceCollection.AddScoped<IHiveCommandService, HiveCommandService>();
-            serviceCollection.AddScoped<ITelemetryService, TelemetryService>();
-            serviceCollection.AddScoped<IInterferenceManagementService, InterferenceManagementService>();
+            // New services will be added in later commits during rebase
+            // serviceCollection.AddScoped<IHiveManagementService, HiveManagementService>();
+            // serviceCollection.AddScoped<IHiveCommandService, HiveCommandService>();
+            // serviceCollection.AddScoped<ITelemetryService, TelemetryService>();
+            // serviceCollection.AddScoped<IInterferenceManagementService, InterferenceManagementService>();
             serviceCollection.AddScoped<IHiveMindMeshIntegrationService, HiveMindMeshIntegrationService>();
             return serviceCollection;
         }

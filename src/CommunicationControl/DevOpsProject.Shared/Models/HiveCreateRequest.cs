@@ -1,8 +1,11 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace DevOpsProject.Shared.Models.DTO.hive
 {
     public class HiveCreateRequest
     {
-        public string HiveId { get; set; }
+        [Required]
+        public string HiveId { get; set; } = string.Empty;
         public string? Name { get; set; }
     }
 }

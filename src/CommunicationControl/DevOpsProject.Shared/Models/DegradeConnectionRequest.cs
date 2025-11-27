@@ -1,24 +1,27 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace DevOpsProject.Shared.Models.DTO.hive
 {
-    /// <summary>
-    /// Request to degrade (change weight of) a connection between two drones
-    /// </summary>
     public class DegradeConnectionRequest
     {
-        /// <summary>
-        /// Source drone ID
-        /// </summary>
+        [Required]
         public string FromDroneId { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Target drone ID
-        /// </summary>
+        [Required]
         public string ToDroneId { get; set; } = string.Empty;
 
-        /// <summary>
-        /// New connection weight (0.0 to 1.0). Lower values indicate degraded connection.
-        /// </summary>
+        [Range(0.0, 1.0)]
         public double NewWeight { get; set; }
+    }
+
+    public class DegradeConnectionResponse
+    {
+        public bool Success { get; set; }
+        public string FromDroneId { get; set; } = string.Empty;
+        public string ToDroneId { get; set; } = string.Empty;
+        public double? PreviousWeight { get; set; }
+        public double NewWeight { get; set; }
+        public string? ErrorMessage { get; set; }
     }
 }
 

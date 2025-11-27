@@ -1,6 +1,4 @@
-﻿version: "3.9"
-
-services:
+﻿services:
   redis:
     image: redis:latest
     container_name: redis
@@ -27,7 +25,7 @@ services:
     container_name: communication-control-api
     build:
       context: ./src/CommunicationControl
-      dockerfile: /DevOpsProject/Dockerfile
+      dockerfile: DevOpsProject/Dockerfile
     depends_on:
       - redis
       - postgres
@@ -36,6 +34,10 @@ services:
       Urls: "http://0.0.0.0:8080"
       Redis__ConnectionString: "redis:6379"
       Redis__PublishChannel: "HiveChannel"
+      CommunicationConfiguration__HiveMindSchema: "http"
+      CommunicationConfiguration__HiveMindHost: "hivemind-api"
+      CommunicationConfiguration__HiveMindPort: "5149"
+      CommunicationConfiguration__HiveMindPath: "api/v1"
     ports:
       - "8080:8080"
   
@@ -43,7 +45,7 @@ services:
   hivemind-api:
     build:
       context: ./src/CommunicationControl
-      dockerfile: /DevOpsProject.HiveMind.API/Dockerfile
+      dockerfile: DevOpsProject.HiveMind.API/Dockerfile
     container_name: hivemind-api
     depends_on:
       - communication-control-api
@@ -63,7 +65,7 @@ services:
 #  http://localhost:5121/swagger/index.html
   bms-api:
     build:
-      context: /src/CommunicationControl
+      context: ./src/CommunicationControl
       dockerfile: DevOpsProject.Bms.API/Dockerfile
     container_name: bms-api
     depends_on:

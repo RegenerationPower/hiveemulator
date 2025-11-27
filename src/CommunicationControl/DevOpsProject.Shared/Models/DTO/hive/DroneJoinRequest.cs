@@ -1,8 +1,11 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace DevOpsProject.Shared.Models.DTO.hive
 {
     public class DroneJoinRequest
     {
-        public string DroneId { get; set; }
+        [Required]
+        public string DroneId { get; set; } = string.Empty;
         public string? DroneName { get; set; }
     }
 

@@ -1,9 +1,13 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace DevOpsProject.Shared.Models.DTO.hive
 {
     public class PingRequest
     {
         public DateTime Timestamp { get; set; }
-        public string HiveID { get; set; }
+
+        [Required]
+        public string HiveID { get; set; } = string.Empty;
     }
 
     public class PingResponse

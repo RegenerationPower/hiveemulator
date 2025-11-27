@@ -1,24 +1,28 @@
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
 namespace DevOpsProject.Shared.Models.DTO.hive
 {
-    /// <summary>
-    /// Request to rebuild topology between drones
-    /// </summary>
     public class TopologyRebuildRequest
     {
-        /// <summary>
-        /// The Hive ID where topology should be rebuilt
-        /// </summary>
-        public string HiveId { get; set; }
+        [Required]
+        public string HiveId { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Topology type: "star", "dual_star", or "mesh"
-        /// </summary>
-        public string TopologyType { get; set; }
+        [Required]
+        public string TopologyType { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Default connection weight for new connections (default: 0.8)
-        /// </summary>
         public double DefaultWeight { get; set; } = 0.8;
+    }
+
+    public class TopologyRebuildResponse
+    {
+        public bool Success { get; set; }
+        public string HiveId { get; set; } = string.Empty;
+        public string TopologyType { get; set; } = string.Empty;
+        public int ConnectionsCreated { get; set; }
+        public int ConnectionsRemoved { get; set; }
+        public IReadOnlyCollection<string>? EntryRelays { get; set; }
+        public string? ErrorMessage { get; set; }
     }
 }
 

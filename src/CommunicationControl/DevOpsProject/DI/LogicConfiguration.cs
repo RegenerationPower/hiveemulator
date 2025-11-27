@@ -14,6 +14,7 @@ namespace DevOpsProject.CommunicationControl.API.DI
             serviceCollection.AddScoped<IHiveCommandService, HiveCommandService>();
             serviceCollection.AddScoped<ITelemetryService, TelemetryService>();
             serviceCollection.AddScoped<IInterferenceManagementService, InterferenceManagementService>();
+            serviceCollection.AddScoped<IHiveMindMeshIntegrationService, HiveMindMeshIntegrationService>();
             return serviceCollection;
         }
     }

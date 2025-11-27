@@ -1,10 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace DevOpsProject.Shared.Models.DTO.hive
 {
     public class StopHivesMovementRequest
     {
         [Required]
-        public List<string> Hives { get; set; }
+        public List<string> Hives { get; set; } = new();
     }
 }

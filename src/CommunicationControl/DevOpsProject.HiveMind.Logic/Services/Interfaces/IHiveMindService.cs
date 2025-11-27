@@ -4,9 +4,11 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
 {
     public interface IHiveMindService
     {
-        Task ConnectHive();
+        Task ConnectHive(string? overrideHiveId = null);
         bool AddInterference(InterferenceModel interferenceModel);
         void RemoveInterference(Guid interferenceId);
         void StopAllTelemetry();
+        HiveTelemetryModel GetCurrentTelemetry();
+        Task<bool> UpdateHiveIdentityAsync(string hiveId, bool reconnect);
     }
 }

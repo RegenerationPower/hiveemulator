@@ -20,6 +20,9 @@ namespace DevOpsProject.HiveMind.API.DI
 
             serviceCollection.AddScoped<IHiveMindService, HiveMindService>();
             serviceCollection.AddScoped<IHiveMindMovingService, HiveMindMovingService>();
+            serviceCollection.AddScoped<IDroneRelayService, DroneRelayService>();
+            serviceCollection.AddScoped<IDroneCommandService, DroneCommandService>();
+            serviceCollection.AddScoped<IHiveService, HiveService>();
 
             return serviceCollection;
         }

@@ -12,4 +12,9 @@ namespace DevOpsProject.Shared.Models.DTO.hive
         public float Height { get; set; }
         public HiveMindState State { get; set; }
     }
+
+    public class HiveTelemetryResponse
+    {
+        public DateTime Timestamp { get; set; }
+    }
 }

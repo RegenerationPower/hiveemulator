@@ -15,15 +15,18 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
         private readonly IHiveManagementService _hiveManagementService;
         private readonly ITelemetryService _telemetryService;
         private readonly IInterferenceManagementService _interferenceManagementService;
+        private readonly IHiveMindMeshIntegrationService _meshIntegrationService;
         private readonly ILogger<HiveController> _logger;
 
         public HiveController(ILogger<HiveController> logger, IHiveManagementService hiveManagementService, 
-            ITelemetryService telemetryService, IInterferenceManagementService interferenceManagementService)
+            ITelemetryService telemetryService, IInterferenceManagementService interferenceManagementService,
+            IHiveMindMeshIntegrationService meshIntegrationService)
         {
             _logger = logger;
             _hiveManagementService = hiveManagementService;
             _telemetryService = telemetryService;
             _interferenceManagementService = interferenceManagementService;
+            _meshIntegrationService = meshIntegrationService;
         }
 
         [HttpPost("connect")]
@@ -71,6 +74,8 @@ namespace DevOpsProject.CommunicationControl.API.Controllers
                 {
                     Timestamp = telemetryUpdateTimestamp
                 };
+
+                await _meshIntegrationService.LogConnectivitySnapshotAsync(request.HiveID);
 
                 return Ok(telemetryResponse);
             }

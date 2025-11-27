@@ -1,0 +1,95 @@
+﻿version: "3.9"
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:16
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: BmsDatabase
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+#  http://localhost:8080/swagger/index.html
+  communication-control-api:
+    container_name: communication-control-api
+    build:
+      context: ./src/CommunicationControl
+      dockerfile: /DevOpsProject/Dockerfile
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      Urls: "http://0.0.0.0:8080"
+      Redis__ConnectionString: "redis:6379"
+      Redis__PublishChannel: "HiveChannel"
+    ports:
+      - "8080:8080"
+  
+#  http://localhost:5149/swagger/index.html
+  hivemind-api:
+    build:
+      context: ./src/CommunicationControl
+      dockerfile: /DevOpsProject.HiveMind.API/Dockerfile
+    container_name: hivemind-api
+    depends_on:
+      - communication-control-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:5149
+      - CommunicationConfiguration__RequestSchema=http
+      - CommunicationConfiguration__CommunicationControlIP=communication-control-api
+      - CommunicationConfiguration__CommunicationControlPort=8080
+      - CommunicationConfiguration__CommunicationControlPath=api/v1/hive
+      - CommunicationConfiguration__HiveIP=hivemind-api
+      - CommunicationConfiguration__HivePort=5149
+      - CommunicationConfiguration__HiveID=1
+    ports:
+      - "5149:5149"
+
+#  http://localhost:5121/swagger/index.html
+  bms-api:
+    build:
+      context: /src/CommunicationControl
+      dockerfile: DevOpsProject.Bms.API/Dockerfile
+    container_name: bms-api
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:5121
+      - Redis__ConnectionString=redis:6379
+      - ConnectionStrings__BmsDb=Host=postgres_db,Port=5432;Database=BmsDatabase;Username=appuser;Password=apppass;TrustServerCertificate=True;
+    ports:
+      - "5121:5121"
+
+  map-client:
+    build:
+      context: ./src/MapClient
+      dockerfile: Dockerfile
+    container_name: map-client
+    depends_on:
+      - communication-control-api
+    environment:
+      # У контейнері клієнт має ходити в бек по імені сервісу, а не localhost
+      - VITE_API_BASE_URL=http://communicationcontrol-api:8080/api/v1/client
+    ports:
+      - "3000:3000"
+
+volumes:
+  redis_data:
+  postgres_data:

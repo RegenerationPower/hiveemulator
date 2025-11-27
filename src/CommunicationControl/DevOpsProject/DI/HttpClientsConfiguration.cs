@@ -13,6 +13,8 @@ namespace DevOpsProject.CommunicationControl.API.DI
             .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
             serviceCollection.AddHttpClient<CommunicationControlHttpClient>()
                 .AddPolicyHandler(hiveRetryPolicy);
+            serviceCollection.AddHttpClient("HiveMindIntegrationClient")
+                .AddPolicyHandler(hiveRetryPolicy);
 
             return serviceCollection;
         }

@@ -1,12 +1,16 @@
+#nullable enable
+using System.ComponentModel.DataAnnotations;
 using DevOpsProject.Shared.Enums;
-using DevOpsProject.Shared.Models;
 
 namespace DevOpsProject.Shared.Models.Commands.Drone
 {
     public class DroneCommand
     {
         public Guid CommandId { get; set; }
-        public string TargetDroneId { get; set; }
+
+        [Required]
+        public string TargetDroneId { get; set; } = string.Empty;
+
         public DroneCommandType CommandType { get; set; }
         public DateTime Timestamp { get; set; }
         public object? CommandPayload { get; set; }
@@ -21,7 +25,9 @@ namespace DevOpsProject.Shared.Models.Commands.Drone
 
     public class ChangeConnectionDroneCommandPayload
     {
-        public string TargetDroneId { get; set; }
+        [Required]
+        public string TargetDroneId { get; set; } = string.Empty;
+
         public double Weight { get; set; }
         public bool AddConnection { get; set; }
     }

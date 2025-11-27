@@ -1,29 +1,21 @@
+#nullable enable
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
 namespace DevOpsProject.Shared.Models.Commands.Drone
 {
-    /// <summary>
-    /// Payload for relay command - contains the final command and routing information
-    /// </summary>
     public class RelayDroneCommandPayload
     {
-        /// <summary>
-        /// The final destination drone ID
-        /// </summary>
-        public string FinalDestinationDroneId { get; set; }
+        [Required]
+        public string FinalDestinationDroneId { get; set; } = string.Empty;
 
-        /// <summary>
-        /// The next hop drone ID in the route (null if this is the final hop)
-        /// </summary>
         public string? NextHopDroneId { get; set; }
 
-        /// <summary>
-        /// The final command to be delivered to the target drone
-        /// </summary>
-        public DroneCommand FinalCommand { get; set; }
+        [Required]
+        public DroneCommand FinalCommand { get; set; } = new();
 
-        /// <summary>
-        /// The full route path from source to destination
-        /// </summary>
-        public IReadOnlyCollection<string> RoutePath { get; set; }
+        [Required]
+        public IReadOnlyCollection<string> RoutePath { get; set; } = Array.Empty<string>();
     }
 }
 

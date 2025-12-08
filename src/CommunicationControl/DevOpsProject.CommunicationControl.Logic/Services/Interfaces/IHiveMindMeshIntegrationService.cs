@@ -1,5 +1,7 @@
 using DevOpsProject.Shared.Models;
-using DevOpsProject.Shared.Models.DTO.hive;
+using DevOpsProject.Shared.Models.DTO.Drone;
+using DevOpsProject.Shared.Models.DTO.Hive;
+using DevOpsProject.Shared.Models.DTO.Topology;
 
 namespace DevOpsProject.CommunicationControl.Logic.Services.Interfaces
 {

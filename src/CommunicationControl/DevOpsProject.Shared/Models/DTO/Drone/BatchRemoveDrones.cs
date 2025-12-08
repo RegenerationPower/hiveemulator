@@ -1,7 +1,15 @@
+#nullable enable
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
-namespace DevOpsProject.Shared.Models.DTO.hive
+namespace DevOpsProject.Shared.Models.DTO.Drone
 {
+    public class BatchRemoveDronesRequest
+    {
+        [Required]
+        public IReadOnlyCollection<string> DroneIds { get; set; } = new List<string>();
+    }
+
     public class BatchRemoveDronesResponse
     {
         public string HiveId { get; set; } = string.Empty;

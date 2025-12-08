@@ -1,7 +1,8 @@
 #nullable enable
 using DevOpsProject.Shared.Models;
 using DevOpsProject.Shared.Models.Commands.Drone;
-using DevOpsProject.Shared.Models.DTO.hive;
+using DevOpsProject.Shared.Models.DTO.Drone;
+using DevOpsProject.Shared.Models.DTO.Hive;
 
 namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
 {

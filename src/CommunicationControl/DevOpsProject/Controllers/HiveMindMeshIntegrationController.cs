@@ -1,6 +1,8 @@
 using Asp.Versioning;
 using DevOpsProject.CommunicationControl.Logic.Services.Interfaces;
-using DevOpsProject.Shared.Models.DTO.hive;
+using DevOpsProject.Shared.Models.DTO.Drone;
+using DevOpsProject.Shared.Models.DTO.Hive;
+using DevOpsProject.Shared.Models.DTO.Topology;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DevOpsProject.CommunicationControl.API.Controllers

@@ -1,7 +1,9 @@
 using DevOpsProject.CommunicationControl.Logic.Services.Interfaces;
 using DevOpsProject.Shared.Configuration;
 using DevOpsProject.Shared.Models;
-using DevOpsProject.Shared.Models.DTO.hive;
+using DevOpsProject.Shared.Models.DTO.Drone;
+using DevOpsProject.Shared.Models.DTO.Hive;
+using DevOpsProject.Shared.Models.DTO.Topology;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http;

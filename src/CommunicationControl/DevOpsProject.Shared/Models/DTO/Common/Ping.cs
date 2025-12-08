@@ -1,6 +1,7 @@
+#nullable enable
 using System.ComponentModel.DataAnnotations;
 
-namespace DevOpsProject.Shared.Models.DTO.hive
+namespace DevOpsProject.Shared.Models.DTO.Common
 {
     public class PingRequest
     {

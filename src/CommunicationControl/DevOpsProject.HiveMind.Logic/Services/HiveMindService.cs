@@ -106,11 +106,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
             HiveInMemoryState.RemoveInterference(interferenceId);
         }
 
-        public void StopAllTelemetry()
-        {
-            StopTelemetry();
-        }
-
         public HiveTelemetryModel GetCurrentTelemetry()
         {
             return new HiveTelemetryModel

@@ -19,46 +19,76 @@ This is a demo project used in the Uni DevOps course
 
 ## Installation
 
-### Redis
+### Швидкий старт з Docker Compose (рекомендовано)
+
+Запуск всієї системи одним командою:
+
+```bash
+docker compose up --build
+```
+
+Це запустить:
+- **Communication Control API** на порту 8080
+- **HiveMind API** на порту 5149
+- **Map Client** на порту 3000
+- **Redis** на порту 6379
+- **PostgreSQL** на порту 5432
+
+### Ручна установка (для розробки)
+
+#### Redis
 ```bash
 docker run --name redis -d -p 6379:6379 redis
 ```
 
-### Map Component
+#### Map Component
 ```bash
 cd src/MapClient
-
 npm install
-
 npm run dev
 ```
 
-### Communiction Control
+#### Communication Control
 ```bash
 cd src/CommunicationControl
-
-dotnet run  --project DevOpsProject/DevOpsProject.CommunicationControl.API.csproj
+dotnet run --project DevOpsProject/DevOpsProject.CommunicationControl.API.csproj
 ```
 
-### Hive Mind
+#### HiveMind
 ```bash
 cd src/CommunicationControl
-
-dotnet run  --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.csproj
+dotnet run --project DevOpsProject.HiveMind.API/DevOpsProject.HiveMind.API.csproj
 ```
 
 
 ## Usage
 
-1. Map Control is available at http://localhost:3000
-2. Redis - Get available keys:
-   ```bash
-        docker exec -it redis redis-cli
-        keys *
-        get [hiveKey]
-    ```
+### Доступні сервіси
 
-3. Communication Control Swagger: http://localhost:8080
+1. **Map Client** - http://localhost:3000
+   - Візуалізація дронів на карті
+
+2. **Communication Control API** - http://localhost:8080
+   - Swagger UI: http://localhost:8080/swagger
+   - Центральний контролер системи
+   - Проксі-ендпоінти до HiveMind
+
+3. **HiveMind API** - http://localhost:5149
+   - Swagger UI: http://localhost:5149/swagger
+   - Управління роєм дронів
+   - Mesh-маршрутизація та топології
+
+4. **Redis** - localhost:6379
+   - Message bus для телеметрії
+   - Перевірка ключів:
+     ```bash
+     docker exec -it redis redis-cli
+     keys *
+     get [hiveKey]
+     ```
+
+5. **PostgreSQL** - localhost:5432
+   - База даних для зберігання телеметрії
 
 ### HiveMind Drone Relay API
 - `GET /api/v1/drones` – list the drones currently registered in the HiveMind swarm cache.

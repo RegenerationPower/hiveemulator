@@ -18,11 +18,4 @@ namespace DevOpsProject.Shared.Models
         [Required]        
         public string HiveID { get; set; } = string.Empty;
     }
-
-    public class HiveConnectResponse
-    {
-        public bool ConnectResult { get; set; }
-        public HiveOperationalArea OperationalArea { get; set; } = new();
-        public List<InterferenceModel> Interferences { get; set; } = new();
-    }
 }

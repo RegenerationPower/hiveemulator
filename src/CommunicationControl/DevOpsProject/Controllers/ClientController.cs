@@ -2,6 +2,7 @@
 using DevOpsProject.CommunicationControl.API.DTO.Client.Request;
 using DevOpsProject.CommunicationControl.Logic.Services.Interfaces;
 using DevOpsProject.Shared.Models;
+using DevOpsProject.Shared.Models.DTO.hive;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 

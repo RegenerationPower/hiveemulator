@@ -79,6 +79,8 @@ namespace DevOpsProject.HiveMind.Logic.Services
                     HiveInMemoryState.OperationalArea = hiveConnectResponse.OperationalArea;
                     HiveInMemoryState.CurrentLocation = _communicationConfigurationOptions.InitialLocation;
                     HiveInMemoryState.Interferences = hiveConnectResponse.Interferences;
+                    HiveInMemoryState.Height = 5.0f; // Default height in meters
+                    HiveInMemoryState.Speed = 0.0f; // Initial speed (not moving)
 
                     StartTelemetry();
                 }
@@ -112,8 +114,8 @@ namespace DevOpsProject.HiveMind.Logic.Services
             {
                 HiveID = HiveInMemoryState.GetHiveId() ?? _communicationConfigurationOptions.HiveID,
                 Location = HiveInMemoryState.CurrentLocation ?? default,
-                Height = 5, // TODO: Get from actual state
-                Speed = 15, // TODO: Get from actual state
+                Height = HiveInMemoryState.Height,
+                Speed = HiveInMemoryState.Speed,
                 State = HiveInMemoryState.IsMoving ? Shared.Enums.HiveMindState.Move : Shared.Enums.HiveMindState.Stop,
                 Timestamp = DateTime.UtcNow
             };
@@ -171,14 +173,14 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
             try
             {
+                var telemetry = GetCurrentTelemetry();
                 var request = new HiveTelemetryRequest
                 {
-                    HiveID = HiveInMemoryState.GetHiveId() ?? _communicationConfigurationOptions.HiveID,
-                    Location = HiveInMemoryState.CurrentLocation ?? default,
-                    // TODO: MOCKED FOR NOW
-                    Height = 5,
-                    Speed = 15,
-                    State = Shared.Enums.HiveMindState.Move
+                    HiveID = telemetry.HiveID,
+                    Location = telemetry.Location,
+                    Height = telemetry.Height,
+                    Speed = telemetry.Speed,
+                    State = telemetry.State
                 };
 
                 var connectResult = await _httpClient.SendCommunicationControlTelemetryAsync(_communicationConfigurationOptions.RequestSchema,

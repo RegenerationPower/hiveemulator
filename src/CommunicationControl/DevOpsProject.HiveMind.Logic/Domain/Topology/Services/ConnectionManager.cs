@@ -53,7 +53,7 @@ namespace DevOpsProject.HiveMind.Logic.Domain.Topology.Services
                 }
             }
 
-            _logger.LogInformation("Connection weight updated: {FromDroneId} -> {ToDroneId}, {OldWeight} -> {NewWeight}",
+            _logger.LogDebug("Connection weight updated: {FromDroneId} -> {ToDroneId}, {OldWeight} -> {NewWeight}",
                 fromDroneId, toDroneId, previousWeight, newWeight);
 
             return true;
@@ -71,7 +71,7 @@ namespace DevOpsProject.HiveMind.Logic.Domain.Topology.Services
             if (removed > 0)
             {
                 _droneRepository.Update(fromDrone);
-                _logger.LogInformation("Connection removed: {FromDroneId} -> {ToDroneId}", fromDroneId, toDroneId);
+                _logger.LogDebug("Connection removed: {FromDroneId} -> {ToDroneId}", fromDroneId, toDroneId);
             }
 
             return removed > 0;

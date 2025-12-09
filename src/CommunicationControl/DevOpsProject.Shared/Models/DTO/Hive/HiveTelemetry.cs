@@ -1,4 +1,4 @@
-﻿using DevOpsProject.Shared.Enums;
+using DevOpsProject.Shared.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace DevOpsProject.Shared.Models
@@ -12,4 +12,10 @@ namespace DevOpsProject.Shared.Models
         public float Height { get; set; }
         public HiveMindState State { get; set; }
     }
+
+    public class HiveTelemetryResponse
+    {
+        public DateTime Timestamp { get; set; }
+    }
 }
+

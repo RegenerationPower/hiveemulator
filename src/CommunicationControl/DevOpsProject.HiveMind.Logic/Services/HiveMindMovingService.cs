@@ -9,6 +9,12 @@ namespace DevOpsProject.HiveMind.Logic.Services
     {
         private readonly ILogger<HiveMindMovingService> _logger;
         private Timer _movementTimer;
+        private DateTime _lastMovementUpdate = DateTime.UtcNow;
+        private Location? _lastLocation;
+        private const float MovementIntervalSeconds = 3.0f;
+        private const float DefaultSpeedWhenMoving = 15.0f; // m/s
+        private const float DefaultHeight = 5.0f; // meters
+
         public HiveMindMovingService(ILogger<HiveMindMovingService> logger)
         {
             _logger = logger;
@@ -33,6 +39,10 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
                 HiveInMemoryState.Destination = destination;
                 HiveInMemoryState.IsMoving = true;
+                HiveInMemoryState.Height = DefaultHeight;
+                HiveInMemoryState.Speed = DefaultSpeedWhenMoving;
+                _lastLocation = HiveInMemoryState.CurrentLocation;
+                _lastMovementUpdate = DateTime.UtcNow;
 
                 _logger.LogInformation($"Received move command: Moving towards {destination}");
 
@@ -85,12 +95,28 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 if (AreLocationsEqual(currentLocation.Value, destination.Value))
                 {
                     _logger.LogInformation("Reached destination. Current location: {@currentLocation}, Destination: {@destination}", currentLocation, destination);
+                    HiveInMemoryState.Speed = 0.0f;
                     StopMovement();
                     return;
                 }
 
                 Location newLocation = CalculateNextPosition(currentLocation.Value, destination.Value, 0.1f);
+                
+                // Calculate speed based on distance moved and time elapsed
+                if (_lastLocation.HasValue)
+                {
+                    float distanceMoved = CalculateDistance(_lastLocation.Value, newLocation);
+                    float timeElapsed = (float)(DateTime.UtcNow - _lastMovementUpdate).TotalSeconds;
+                    if (timeElapsed > 0)
+                    {
+                        float calculatedSpeed = distanceMoved / timeElapsed;
+                        HiveInMemoryState.Speed = calculatedSpeed;
+                    }
+                }
+                
                 HiveInMemoryState.CurrentLocation = newLocation;
+                _lastLocation = newLocation;
+                _lastMovementUpdate = DateTime.UtcNow;
             }
         }
 
@@ -100,6 +126,8 @@ namespace DevOpsProject.HiveMind.Logic.Services
             _movementTimer = null;
             HiveInMemoryState.IsMoving = false;
             HiveInMemoryState.Destination = null;
+            HiveInMemoryState.Speed = 0.0f;
+            _lastLocation = null;
         }
 
         private static bool AreLocationsEqual(Location loc1, Location loc2)
@@ -118,6 +146,19 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 Latitude = newLat,
                 Longitude = newLon
             };
+        }
+
+        private static float CalculateDistance(Location loc1, Location loc2)
+        {
+            // Haversine formula to calculate distance between two coordinates in meters
+            const float earthRadiusMeters = 6371000f;
+            float dLat = (float)((loc2.Latitude - loc1.Latitude) * Math.PI / 180.0);
+            float dLon = (float)((loc2.Longitude - loc1.Longitude) * Math.PI / 180.0);
+            float a = (float)(Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                        Math.Cos(loc1.Latitude * Math.PI / 180.0) * Math.Cos(loc2.Latitude * Math.PI / 180.0) *
+                        Math.Sin(dLon / 2) * Math.Sin(dLon / 2));
+            float c = (float)(2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a)));
+            return earthRadiusMeters * c;
         }
     }
 }

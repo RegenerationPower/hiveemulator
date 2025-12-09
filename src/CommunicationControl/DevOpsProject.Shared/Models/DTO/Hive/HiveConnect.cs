@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using DevOpsProject.Shared.Models;
+using System.Text.Json.Serialization;
 
 namespace DevOpsProject.Shared.Models
 {
@@ -18,4 +18,12 @@ namespace DevOpsProject.Shared.Models
         [Required]        
         public string HiveID { get; set; } = string.Empty;
     }
+
+    public class HiveConnectResponse
+    {
+        public bool ConnectResult { get; set; }
+        public HiveOperationalArea OperationalArea { get; set; }
+        public List<InterferenceModel> Interferences { get; set; }
+    }
 }
+

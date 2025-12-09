@@ -55,13 +55,13 @@ namespace DevOpsProject.HiveMind.Logic.Services
             }
             if (isNew)
             {
-                _logger.LogInformation("New drone {DroneId} of type {Type} registered with {ConnectionCount} connections.",
-                    drone.Id, drone.Type, drone.Connections?.Count ?? 0);
+                _logger.LogInformation("New drone {DroneId} of type {Type} registered.",
+                    drone.Id, drone.Type);
             }
             else
             {
-                _logger.LogInformation("Existing drone {DroneId} of type {Type} updated with {ConnectionCount} connections.",
-                    drone.Id, drone.Type, drone.Connections?.Count ?? 0);
+                _logger.LogInformation("Existing drone {DroneId} of type {Type} updated.",
+                    drone.Id, drone.Type);
             }
             return isNew;
         }
@@ -151,6 +151,23 @@ namespace DevOpsProject.HiveMind.Logic.Services
             }
 
             return removed;
+        }
+
+        public int RemoveAllDrones()
+        {
+            var allDrones = _droneRepository.GetAll();
+            int removedCount = 0;
+
+            foreach (var drone in allDrones)
+            {
+                if (RemoveDrone(drone.Id))
+                {
+                    removedCount++;
+                }
+            }
+
+            _logger.LogInformation("Removed all {Count} drones from the swarm", removedCount);
+            return removedCount;
         }
 
         public DroneConnectionAnalysisResponse AnalyzeConnection(string droneId, double minimumWeight = 0.5)
@@ -344,7 +361,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 _connectionManager.RemoveConnection(request.ToDroneId, request.FromDroneId);
                 response.NewWeight = 0;
                 response.Success = true;
-                _logger.LogInformation("Connection removed due to zero weight: {FromDroneId} <-> {ToDroneId}", request.FromDroneId, request.ToDroneId);
+                _logger.LogDebug("Connection removed due to zero weight: {FromDroneId} <-> {ToDroneId}", request.FromDroneId, request.ToDroneId);
                 return response;
             }
 
@@ -358,7 +375,7 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
             response.Success = true;
             response.NewWeight = request.NewWeight;
-            _logger.LogInformation("Connection degraded: {FromDroneId} -> {ToDroneId}, weight changed from {OldWeight} to {NewWeight}",
+            _logger.LogDebug("Connection degraded: {FromDroneId} -> {ToDroneId}, weight changed from {OldWeight} to {NewWeight}",
                 request.FromDroneId, request.ToDroneId, previousWeight, request.NewWeight);
 
             return response;

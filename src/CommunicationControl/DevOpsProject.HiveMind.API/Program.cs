@@ -54,6 +54,7 @@ builder.Services.AddProblemDetails();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.SerializerOptions.PropertyNameCaseInsensitive = true;
 });
 
 var app = builder.Build();
@@ -148,6 +149,17 @@ groupBuilder.MapPost("drones/batch", ([FromBody] BatchCreateDronesRequest reques
     return Results.Ok(response);
 });
 
+// Delete all drones endpoint
+groupBuilder.MapDelete("drones", ([FromServices] IDroneRelayService relayService) =>
+{
+    var removedCount = relayService.RemoveAllDrones();
+    return Results.Ok(new 
+    { 
+        message = $"All drones removed successfully",
+        removedCount = removedCount
+    });
+});
+
 groupBuilder.MapDelete("drones/{droneId}", (string droneId, [FromServices] IDroneRelayService relayService) =>
 {
     var removed = relayService.RemoveDrone(droneId);
@@ -219,6 +231,17 @@ groupBuilder.MapGet("hives/{hiveId}", (string hiveId, [FromServices] IHiveServic
         return Results.NotFound(new { message = $"Hive {hiveId} not found" });
     }
     return Results.Ok(hive);
+});
+
+// Delete all hives endpoint
+groupBuilder.MapDelete("hives", ([FromServices] IHiveService hiveService) =>
+{
+    var deletedCount = hiveService.DeleteAllHives();
+    return Results.Ok(new 
+    { 
+        message = $"All hives deleted successfully",
+        deletedCount = deletedCount
+    });
 });
 
 groupBuilder.MapDelete("hives/{hiveId}", (string hiveId, [FromServices] IHiveService hiveService) =>
@@ -490,6 +513,112 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
     {
         command.CommandPayload = null;
     }
+    else if (command.CommandType == DroneCommandType.Move)
+    {
+        // Validate Move command payload
+        if (command.CommandPayload == null)
+        {
+            return Results.BadRequest(new { message = "CommandPayload is required for Move command" });
+        }
+        
+        // Try to deserialize as MoveDroneCommandPayload
+        try
+        {
+            // First, check if the payload contains the correct field names
+            var payloadJson = System.Text.Json.JsonSerializer.Serialize(command.CommandPayload);
+            var payloadDoc = System.Text.Json.JsonDocument.Parse(payloadJson);
+            var root = payloadDoc.RootElement;
+            
+            // Check for required fields with correct names (case-insensitive but prefer exact match)
+            var hasLat = root.TryGetProperty("lat", out var latElement) || root.TryGetProperty("Lat", out latElement);
+            var hasLon = root.TryGetProperty("lon", out var lonElement) || root.TryGetProperty("Lon", out lonElement);
+            var hasHeight = root.TryGetProperty("height", out var heightElement) || root.TryGetProperty("Height", out heightElement);
+            var hasSpeed = root.TryGetProperty("speed", out var speedElement) || root.TryGetProperty("Speed", out speedElement);
+            
+            // Check for incorrect field names
+            var hasLatitude = root.TryGetProperty("Latitude", out _) || root.TryGetProperty("latitude", out _);
+            var hasLongitude = root.TryGetProperty("Longitude", out _) || root.TryGetProperty("longitude", out _);
+            var hasAltitude = root.TryGetProperty("Altitude", out _) || root.TryGetProperty("altitude", out _);
+            
+            var validationErrors = new List<string>();
+            
+            if (hasLatitude || hasLongitude || hasAltitude)
+            {
+                validationErrors.Add("Invalid field names detected. Use 'lat', 'lon', 'height', 'speed' instead of 'Latitude', 'Longitude', 'Altitude'");
+            }
+            
+            if (!hasLat || !hasLon || !hasHeight || !hasSpeed)
+            {
+                var missingFields = new List<string>();
+                if (!hasLat && !hasLatitude) missingFields.Add("lat");
+                if (!hasLon && !hasLongitude) missingFields.Add("lon");
+                if (!hasHeight && !hasAltitude) missingFields.Add("height");
+                if (!hasSpeed) missingFields.Add("speed");
+                
+                if (missingFields.Any())
+                {
+                    validationErrors.Add($"Missing required fields: {string.Join(", ", missingFields)}");
+                }
+            }
+            
+            if (validationErrors.Any())
+            {
+                return Results.BadRequest(new 
+                { 
+                    message = "Invalid Move command payload",
+                    errors = validationErrors,
+                    requiredFields = new { lat = "float", lon = "float", height = "float (> 0)", speed = "float (> 0)" },
+                    example = new { lat = 48.719547, lon = 38.092680, height = 100.5, speed = 20.0 }
+                });
+            }
+            
+            // Now deserialize with proper field mapping
+            var movePayload = System.Text.Json.JsonSerializer.Deserialize<MoveDroneCommandPayload>(payloadJson);
+            if (movePayload == null)
+            {
+                return Results.BadRequest(new { message = "Invalid Move command payload. Failed to deserialize payload." });
+            }
+            
+            // Validate all required fields are present and have valid values
+            if (movePayload.Lat == 0 && movePayload.Lon == 0)
+            {
+                validationErrors.Add("lat and lon cannot both be 0");
+            }
+            
+            if (movePayload.Height <= 0)
+            {
+                validationErrors.Add("height must be greater than 0");
+            }
+            
+            if (movePayload.Speed <= 0)
+            {
+                validationErrors.Add("speed must be greater than 0");
+            }
+            
+            if (validationErrors.Any())
+            {
+                return Results.BadRequest(new 
+                { 
+                    message = "Invalid Move command payload",
+                    errors = validationErrors,
+                    requiredFields = new { lat = "float", lon = "float", height = "float (> 0)", speed = "float (> 0)" }
+                });
+            }
+            
+            // Replace with properly typed payload
+            command.CommandPayload = movePayload;
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new 
+            { 
+                message = "Invalid Move command payload format",
+                error = ex.Message,
+                expectedFormat = new { lat = "float", lon = "float", height = "float", speed = "float" },
+                example = new { lat = 48.719547, lon = 38.092680, height = 100.5, speed = 20.0 }
+            });
+        }
+    }
     
     commandService.SendCommand(command);
     return Results.Created($"/api/v1/drones/{droneId}/commands/{command.CommandId}", command);
@@ -525,7 +654,113 @@ groupBuilder.MapPost("hives/{hiveId}/commands", (string hiveId, [FromBody] Drone
     {
         command.CommandPayload = null;
     }
-    
+    else if (command.CommandType == DroneCommandType.Move)
+    {
+        // Validate Move command payload
+        if (command.CommandPayload == null)
+        {
+            return Results.BadRequest(new { message = "CommandPayload is required for Move command" });
+        }
+        
+        // Try to deserialize as MoveDroneCommandPayload
+        try
+        {
+            // First, check if the payload contains the correct field names
+            var payloadJson = System.Text.Json.JsonSerializer.Serialize(command.CommandPayload);
+            var payloadDoc = System.Text.Json.JsonDocument.Parse(payloadJson);
+            var root = payloadDoc.RootElement;
+            
+            // Check for required fields with correct names (case-insensitive but prefer exact match)
+            var hasLat = root.TryGetProperty("lat", out var latElement) || root.TryGetProperty("Lat", out latElement);
+            var hasLon = root.TryGetProperty("lon", out var lonElement) || root.TryGetProperty("Lon", out lonElement);
+            var hasHeight = root.TryGetProperty("height", out var heightElement) || root.TryGetProperty("Height", out heightElement);
+            var hasSpeed = root.TryGetProperty("speed", out var speedElement) || root.TryGetProperty("Speed", out speedElement);
+            
+            // Check for incorrect field names
+            var hasLatitude = root.TryGetProperty("Latitude", out _) || root.TryGetProperty("latitude", out _);
+            var hasLongitude = root.TryGetProperty("Longitude", out _) || root.TryGetProperty("longitude", out _);
+            var hasAltitude = root.TryGetProperty("Altitude", out _) || root.TryGetProperty("altitude", out _);
+            
+            var validationErrors = new List<string>();
+            
+            if (hasLatitude || hasLongitude || hasAltitude)
+            {
+                validationErrors.Add("Invalid field names detected. Use 'lat', 'lon', 'height', 'speed' instead of 'Latitude', 'Longitude', 'Altitude'");
+            }
+            
+            if (!hasLat || !hasLon || !hasHeight || !hasSpeed)
+            {
+                var missingFields = new List<string>();
+                if (!hasLat && !hasLatitude) missingFields.Add("lat");
+                if (!hasLon && !hasLongitude) missingFields.Add("lon");
+                if (!hasHeight && !hasAltitude) missingFields.Add("height");
+                if (!hasSpeed) missingFields.Add("speed");
+                
+                if (missingFields.Any())
+                {
+                    validationErrors.Add($"Missing required fields: {string.Join(", ", missingFields)}");
+                }
+            }
+            
+            if (validationErrors.Any())
+            {
+                return Results.BadRequest(new 
+                { 
+                    message = "Invalid Move command payload",
+                    errors = validationErrors,
+                    requiredFields = new { lat = "float", lon = "float", height = "float (> 0)", speed = "float (> 0)" },
+                    example = new { lat = 48.719547, lon = 38.092680, height = 100.5, speed = 20.0 }
+                });
+            }
+            
+            // Now deserialize with proper field mapping
+            var movePayload = System.Text.Json.JsonSerializer.Deserialize<MoveDroneCommandPayload>(payloadJson);
+            if (movePayload == null)
+            {
+                return Results.BadRequest(new { message = "Invalid Move command payload. Failed to deserialize payload." });
+            }
+            
+            // Validate all required fields are present and have valid values
+            if (movePayload.Lat == 0 && movePayload.Lon == 0)
+            {
+                validationErrors.Add("lat and lon cannot both be 0");
+            }
+            
+            if (movePayload.Height <= 0)
+            {
+                validationErrors.Add("height must be greater than 0");
+            }
+            
+            if (movePayload.Speed <= 0)
+            {
+                validationErrors.Add("speed must be greater than 0");
+            }
+            
+            if (validationErrors.Any())
+            {
+                return Results.BadRequest(new 
+                { 
+                    message = "Invalid Move command payload",
+                    errors = validationErrors,
+                    requiredFields = new { lat = "float", lon = "float", height = "float (> 0)", speed = "float (> 0)" }
+                });
+            }
+            
+            // Replace with properly typed payload
+            command.CommandPayload = movePayload;
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new 
+            { 
+                message = "Invalid Move command payload format",
+                error = ex.Message,
+                expectedFormat = new { lat = "float", lon = "float", height = "float", speed = "float" },
+                example = new { lat = 48.719547, lon = 38.092680, height = 100.5, speed = 20.0 }
+            });
+        }
+    }
+
     var sentCount = commandService.SendCommandToHive(hiveId, command);
     if (sentCount == 0)
     {

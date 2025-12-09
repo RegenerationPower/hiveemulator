@@ -78,6 +78,23 @@ namespace DevOpsProject.HiveMind.Logic.Services
         {
             return HiveInMemoryState.GetAllHives();
         }
+
+        public int DeleteAllHives()
+        {
+            var allHives = HiveInMemoryState.GetAllHives();
+            int deletedCount = 0;
+
+            foreach (var hive in allHives)
+            {
+                if (DeleteHive(hive.Id))
+                {
+                    deletedCount++;
+                }
+            }
+
+            _logger.LogInformation("Deleted all {Count} hives", deletedCount);
+            return deletedCount;
+        }
     }
 }
 

@@ -31,6 +31,8 @@ namespace DevOpsProject.HiveMind.Logic.State
 
         private static Location? _currentLocation;
         private static Location? _destination;
+        private static float _height = 5.0f; // Default height in meters
+        private static float _speed = 0.0f; // Current speed in m/s
 
         private static List<InterferenceModel> _interferences = new List<InterferenceModel>();
         private static readonly Dictionary<string, Drone> _drones = new();
@@ -171,6 +173,30 @@ namespace DevOpsProject.HiveMind.Logic.State
             set
             {
                 lock (_movementLock) { _destination = value; }
+            }
+        }
+
+        public static float Height
+        {
+            get
+            {
+                lock (_movementLock) { return _height; }
+            }
+            set
+            {
+                lock (_movementLock) { _height = value; }
+            }
+        }
+
+        public static float Speed
+        {
+            get
+            {
+                lock (_movementLock) { return _speed; }
+            }
+            set
+            {
+                lock (_movementLock) { _speed = value; }
             }
         }
 

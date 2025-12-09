@@ -37,7 +37,7 @@ namespace DevOpsProject.HiveMind.Logic.Domain.Topology.Services
                 }
             }
 
-            _logger.LogInformation("Created {Count} connections for mesh topology with {DroneCount} drones",
+            _logger.LogDebug("Created {Count} connections for mesh topology with {DroneCount} drones",
                 connectionsCreated, drones.Count);
             return connectionsCreated;
         }
@@ -58,7 +58,7 @@ namespace DevOpsProject.HiveMind.Logic.Domain.Topology.Services
                 connectionsCreated += 2;
             }
 
-            _logger.LogInformation("Created {Count} connections for star topology with hub {HubId}",
+            _logger.LogDebug("Created {Count} connections for star topology with hub {HubId}",
                 connectionsCreated, hubDroneId);
             return connectionsCreated;
         }
@@ -88,7 +88,7 @@ namespace DevOpsProject.HiveMind.Logic.Domain.Topology.Services
                 connectionsCreated += 4;
             }
 
-            _logger.LogInformation("Created {Count} connections for dual-star topology with hubs {Hub1}, {Hub2}",
+            _logger.LogDebug("Created {Count} connections for dual-star topology with hubs {Hub1}, {Hub2}",
                 connectionsCreated, hub1Id, hub2Id);
             return connectionsCreated;
         }
@@ -106,7 +106,7 @@ namespace DevOpsProject.HiveMind.Logic.Domain.Topology.Services
                 }
             }
 
-            _logger.LogInformation("Removed {Count} connections from {DroneCount} drones",
+            _logger.LogDebug("Removed {Count} connections from {DroneCount} drones",
                 removed, drones.Count);
             return removed;
         }

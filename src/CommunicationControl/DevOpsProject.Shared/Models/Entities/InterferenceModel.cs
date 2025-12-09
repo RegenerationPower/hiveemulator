@@ -1,4 +1,4 @@
-﻿namespace DevOpsProject.Shared.Models
+namespace DevOpsProject.Shared.Models
 {
     public class InterferenceModel
     {
@@ -8,3 +8,4 @@
         public DateTime CreatedAt { get; set; }
     }
 }
+

@@ -11,6 +11,7 @@ namespace DevOpsProject.HiveMind.Logic.Services.Interfaces
         bool UpsertDrone(Drone drone);
         BatchCreateDronesResponse BatchCreateDrones(BatchCreateDronesRequest request);
         bool RemoveDrone(string droneId);
+        int RemoveAllDrones();
         DroneConnectionAnalysisResponse AnalyzeConnection(string droneId, double minimumWeight = 0.5);
         MeshCommandResponse SendCommandViaMesh(string targetDroneId, DroneCommand command, double minimumWeight = 0.5);
         TopologyRebuildResponse RebuildTopology(TopologyRebuildRequest request);

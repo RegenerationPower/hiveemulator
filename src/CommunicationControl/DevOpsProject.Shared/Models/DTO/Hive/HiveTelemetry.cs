@@ -11,6 +11,7 @@ namespace DevOpsProject.Shared.Models
         public float Speed { get; set; }
         public float Height { get; set; }
         public HiveMindState State { get; set; }
+        public List<DroneTelemetryInfo>? Drones { get; set; }
     }
 
     public class HiveTelemetryResponse

@@ -39,7 +39,11 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
                 HiveInMemoryState.Destination = destination;
                 HiveInMemoryState.IsMoving = true;
-                HiveInMemoryState.Height = DefaultHeight;
+                // Встановлюємо Height тільки якщо він ще не заданий (0)
+                if (HiveInMemoryState.Height == 0.0f)
+                {
+                    HiveInMemoryState.Height = DefaultHeight;
+                }
                 HiveInMemoryState.Speed = DefaultSpeedWhenMoving;
                 _lastLocation = HiveInMemoryState.CurrentLocation;
                 _lastMovementUpdate = DateTime.UtcNow;

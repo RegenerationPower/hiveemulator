@@ -113,6 +113,65 @@ groupBuilder.MapPost("command", async (HiveMindCommand command, [FromServices]IC
     return Results.Ok(telemetry);
 });
 
+// Update Hive telemetry endpoint
+groupBuilder.MapPut("hives/{hiveId}/telemetry", (string hiveId, [FromBody] UpdateHiveTelemetryRequest request, [FromServices] IHiveMindService hiveMindService) =>
+{
+    if (string.IsNullOrWhiteSpace(hiveId))
+    {
+        return Results.BadRequest(new UpdateHiveTelemetryResponse
+        {
+            Success = false,
+            Message = "Hive ID is required"
+        });
+    }
+
+    // Перевіряємо, чи існує hive перед оновленням
+    var hiveExists = HiveInMemoryState.GetHive(hiveId) != null;
+    if (!hiveExists)
+    {
+        return Results.NotFound(new UpdateHiveTelemetryResponse
+        {
+            Success = false,
+            Message = $"Hive with ID '{hiveId}' does not exist"
+        });
+    }
+
+    var updated = hiveMindService.UpdateTelemetry(
+        hiveId,
+        request.Location,
+        request.Height,
+        request.Speed,
+        request.IsMoving);
+
+    if (updated)
+    {
+        var telemetry = hiveMindService.GetTelemetry(hiveId);
+        if (telemetry == null)
+        {
+            return Results.NotFound(new UpdateHiveTelemetryResponse
+            {
+                Success = false,
+                Message = $"Hive with ID '{hiveId}' does not exist"
+            });
+        }
+
+        return Results.Ok(new UpdateHiveTelemetryResponse
+        {
+            Success = true,
+            Message = $"Telemetry updated successfully for Hive {hiveId}",
+            Telemetry = telemetry
+        });
+    }
+    else
+    {
+        return Results.BadRequest(new UpdateHiveTelemetryResponse
+        {
+            Success = false,
+            Message = "No telemetry fields provided to update"
+        });
+    }
+});
+
 groupBuilder.MapGet("drones", ([FromServices] IDroneRelayService relayService) =>
 {
     var drones = relayService.GetSwarm();

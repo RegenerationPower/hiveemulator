@@ -27,12 +27,18 @@ namespace DevOpsProject.HiveMind.Logic.State
         private static HiveOperationalArea _operationalArea;
 
         private static bool _isTelemetryRunning;
-        private static bool _isMoving;
-
-        private static Location? _currentLocation;
-        private static Location? _destination;
-        private static float _height = 5.0f; // Default height in meters
-        private static float _speed = 0.0f; // Current speed in m/s
+        
+        // Телеметрія для кожного hive окремо
+        public class HiveTelemetryData
+        {
+            public Location? CurrentLocation { get; set; }
+            public Location? Destination { get; set; }
+            public float Height { get; set; } = 0.0f;
+            public float Speed { get; set; } = 0.0f;
+            public bool IsMoving { get; set; } = false;
+        }
+        private static readonly Dictionary<string, HiveTelemetryData> _hiveTelemetry = new(); // HiveID -> TelemetryData
+        private static readonly object _hiveTelemetryLock = new();
 
         private static List<InterferenceModel> _interferences = new List<InterferenceModel>();
         private static readonly Dictionary<string, Drone> _drones = new();
@@ -138,17 +144,16 @@ namespace DevOpsProject.HiveMind.Logic.State
         {
             get 
             { 
-                lock (_movementLock) 
-                { 
-                    return _isMoving; 
-                } 
+                var hiveId = GetHiveId();
+                if (hiveId == null) return false;
+                return GetHiveTelemetry(hiveId).IsMoving;
             }
             set 
             { 
-                lock (_movementLock) 
-                { 
-                    _isMoving = value; 
-                } 
+                var hiveId = GetHiveId();
+                if (hiveId == null) return;
+                var telemetry = GetHiveTelemetry(hiveId);
+                telemetry.IsMoving = value;
             }
         }
 
@@ -156,11 +161,16 @@ namespace DevOpsProject.HiveMind.Logic.State
         {
             get
             {
-                lock (_movementLock) { return _currentLocation; }
+                var hiveId = GetHiveId();
+                if (hiveId == null) return null;
+                return GetHiveTelemetry(hiveId).CurrentLocation;
             }
             set
             {
-                lock (_movementLock) { _currentLocation = value; }
+                var hiveId = GetHiveId();
+                if (hiveId == null) return;
+                var telemetry = GetHiveTelemetry(hiveId);
+                telemetry.CurrentLocation = value;
             }
         }
 
@@ -168,11 +178,16 @@ namespace DevOpsProject.HiveMind.Logic.State
         {
             get
             {
-                lock (_movementLock) { return _destination; }
+                var hiveId = GetHiveId();
+                if (hiveId == null) return null;
+                return GetHiveTelemetry(hiveId).Destination;
             }
             set
             {
-                lock (_movementLock) { _destination = value; }
+                var hiveId = GetHiveId();
+                if (hiveId == null) return;
+                var telemetry = GetHiveTelemetry(hiveId);
+                telemetry.Destination = value;
             }
         }
 
@@ -180,11 +195,16 @@ namespace DevOpsProject.HiveMind.Logic.State
         {
             get
             {
-                lock (_movementLock) { return _height; }
+                var hiveId = GetHiveId();
+                if (hiveId == null) return 0.0f;
+                return GetHiveTelemetry(hiveId).Height;
             }
             set
             {
-                lock (_movementLock) { _height = value; }
+                var hiveId = GetHiveId();
+                if (hiveId == null) return;
+                var telemetry = GetHiveTelemetry(hiveId);
+                telemetry.Height = value;
             }
         }
 
@@ -192,11 +212,67 @@ namespace DevOpsProject.HiveMind.Logic.State
         {
             get
             {
-                lock (_movementLock) { return _speed; }
+                var hiveId = GetHiveId();
+                if (hiveId == null) return 0.0f;
+                return GetHiveTelemetry(hiveId).Speed;
             }
             set
             {
-                lock (_movementLock) { _speed = value; }
+                var hiveId = GetHiveId();
+                if (hiveId == null) return;
+                var telemetry = GetHiveTelemetry(hiveId);
+                telemetry.Speed = value;
+            }
+        }
+
+        // Методи для роботи з телеметрією конкретного hive
+        private static HiveTelemetryData GetHiveTelemetry(string hiveId)
+        {
+            lock (_hiveTelemetryLock)
+            {
+                if (!_hiveTelemetry.TryGetValue(hiveId, out var telemetry))
+                {
+                    telemetry = new HiveTelemetryData();
+                    _hiveTelemetry[hiveId] = telemetry;
+                }
+                return telemetry;
+            }
+        }
+
+        public static HiveTelemetryData GetHiveTelemetryData(string hiveId)
+        {
+            return GetHiveTelemetry(hiveId);
+        }
+
+        public static void UpdateHiveTelemetry(string hiveId, Location? location, float? height, float? speed, bool? isMoving)
+        {
+            lock (_hiveTelemetryLock)
+            {
+                var telemetry = GetHiveTelemetry(hiveId);
+                if (location.HasValue)
+                {
+                    telemetry.CurrentLocation = location.Value;
+                }
+                if (height.HasValue)
+                {
+                    telemetry.Height = height.Value;
+                }
+                if (speed.HasValue)
+                {
+                    telemetry.Speed = speed.Value;
+                }
+                if (isMoving.HasValue)
+                {
+                    telemetry.IsMoving = isMoving.Value;
+                }
+            }
+        }
+
+        public static void RemoveHiveTelemetry(string hiveId)
+        {
+            lock (_hiveTelemetryLock)
+            {
+                _hiveTelemetry.Remove(hiveId);
             }
         }
 
@@ -438,7 +514,13 @@ namespace DevOpsProject.HiveMind.Logic.State
 
             lock (_hiveLock)
             {
-                return _hives.Remove(hiveId);
+                bool removed = _hives.Remove(hiveId);
+                if (removed)
+                {
+                    // Видаляємо телеметрію для цього hive
+                    RemoveHiveTelemetry(hiveId);
+                }
+                return removed;
             }
         }
 

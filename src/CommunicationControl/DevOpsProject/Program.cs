@@ -24,7 +24,12 @@ internal class Program
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
         {
-            c.SwaggerDoc("v1", new OpenApiInfo { Title = "CommunicationControl - V1", Version = "v1.0" });
+            c.SwaggerDoc("v1", new OpenApiInfo 
+            { 
+                Title = "Communication Control API", 
+                Version = "v1.0",
+                Description = "Центральний контролер системи для координації HiveMind сервісів"
+            });
         });
 
         // TODO: LATER - ADD OpenTelemtry

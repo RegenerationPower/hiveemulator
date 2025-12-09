@@ -52,15 +52,12 @@ namespace DevOpsProject.HiveMind.Logic.Services
             if (!isNew)
             {
                 _droneRepository.Update(drone);
-            }
-            if (isNew)
-            {
-                _logger.LogInformation("New drone {DroneId} of type {Type} registered.",
+                _logger.LogInformation("Existing drone {DroneId} of type {Type} updated.",
                     drone.Id, drone.Type);
             }
             else
             {
-                _logger.LogInformation("Existing drone {DroneId} of type {Type} updated.",
+                _logger.LogInformation("New drone {DroneId} of type {Type} registered.",
                     drone.Id, drone.Type);
             }
             return isNew;

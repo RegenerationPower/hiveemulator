@@ -7,20 +7,6 @@
     volumes:
       - redis_data:/data
 
-  postgres:
-    image: postgres:16
-    container_name: postgres_db
-    restart: always
-    environment:
-      POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: apppass
-      POSTGRES_DB: BmsDatabase
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-#  http://localhost:8080/swagger/index.html
   communication-control-api:
     container_name: communication-control-api
     build:
@@ -39,8 +25,7 @@
       CommunicationConfiguration__HiveMindPath: "api/v1"
     ports:
       - "8080:8080"
-  
-#  http://localhost:5149/swagger/index.html
+
   hivemind-api:
     build:
       context: ./src/CommunicationControl
@@ -69,11 +54,9 @@
     depends_on:
       - communication-control-api
     environment:
-      # У контейнері клієнт має ходити в бек по імені сервісу, а не localhost
       - VITE_API_BASE_URL=http://communicationcontrol-api:8080/api/v1/client
     ports:
       - "3000:3000"
 
 volumes:
   redis_data:
-  postgres_data:

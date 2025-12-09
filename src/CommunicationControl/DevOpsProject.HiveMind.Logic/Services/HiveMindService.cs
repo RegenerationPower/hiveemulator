@@ -85,10 +85,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 if (hiveConnectResponse != null && hiveConnectResponse.ConnectResult)
                 {
                     HiveInMemoryState.OperationalArea = hiveConnectResponse.OperationalArea;
-                    // Не встановлюємо телеметрію за замовчуванням - вона має бути 0/null, поки не задана вручну
-                    // HiveInMemoryState.CurrentLocation = _communicationConfigurationOptions.InitialLocation;
-                    // HiveInMemoryState.Height = 5.0f;
-                    // HiveInMemoryState.Speed = 0.0f; // Вже 0 за замовчуванням
                     HiveInMemoryState.Interferences = hiveConnectResponse.Interferences;
 
                     StartTelemetry();
@@ -122,19 +118,14 @@ namespace DevOpsProject.HiveMind.Logic.Services
             var hiveId = HiveInMemoryState.GetHiveId() ?? _communicationConfigurationOptions.HiveID;
             var drones = new List<DroneTelemetryInfo>();
 
-            // Збираємо дані про дронів та їх команди
             var allDrones = _droneRelayService.GetSwarm();
             var hiveDroneIds = HiveInMemoryState.GetHiveDrones(hiveId).ToHashSet();
 
             foreach (var drone in allDrones)
             {
-                // Перевіряємо, чи дрон належить до поточного рою
                 if (hiveDroneIds.Contains(drone.Id))
                 {
                     var individualCommands = HiveInMemoryState.GetAllDroneCommands(drone.Id).ToList();
-                    
-                    // Перевіряємо, чи є команда для всього рою
-                    // Команда для рою - це коли всі дрони мають хоча б одну команду одного типу
                     var hasHiveCommand = individualCommands.Any();
 
                     drones.Add(new DroneTelemetryInfo
@@ -148,7 +139,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 }
             }
 
-            // Отримуємо телеметрію для поточного hive
             var location = HiveInMemoryState.CurrentLocation ?? new Location { Latitude = 0.0f, Longitude = 0.0f };
             
             return new HiveTelemetryModel
@@ -165,7 +155,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
         public HiveTelemetryModel? GetTelemetry(string hiveId)
         {
-            // Перевіряємо, чи існує hive
             var hive = HiveInMemoryState.GetHive(hiveId);
             if (hive == null)
             {
@@ -173,7 +162,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 return null;
             }
 
-            // Отримуємо телеметрію для конкретного hive
             var drones = new List<DroneTelemetryInfo>();
             var hiveDroneIds = HiveInMemoryState.GetHiveDrones(hiveId).ToHashSet();
 
@@ -199,7 +187,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
                 }
             }
 
-            // Отримуємо телеметрію для конкретного hive без зміни поточного hive
             var telemetryData = HiveInMemoryState.GetHiveTelemetryData(hiveId);
             var location = telemetryData.CurrentLocation ?? new Location { Latitude = 0.0f, Longitude = 0.0f };
             
@@ -234,9 +221,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
             HiveInMemoryState.SetHiveId(normalized);
             _logger.LogInformation("Hive identity updated to {HiveId}", normalized);
 
-            // При переключенні на інший hive телеметрія зберігається для кожного hive окремо
-            // Не потрібно скидати телеметрію - вона автоматично завантажиться для нового hive
-
             if (reconnect)
             {
                 StopTelemetry();
@@ -248,7 +232,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
         public bool UpdateTelemetry(string hiveId, Location? location, float? height, float? speed, bool? isMoving)
         {
-            // Перевіряємо, чи існує hive
             var hive = HiveInMemoryState.GetHive(hiveId);
             if (hive == null)
             {
@@ -285,7 +268,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
             if (updated)
             {
-                // Оновлюємо телеметрію для конкретного hive
                 HiveInMemoryState.UpdateHiveTelemetry(hiveId, location, height, speed, isMoving);
             }
 
@@ -328,7 +310,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
                     Drones = telemetry.Drones
                 };
 
-                // Детальне логування телеметрії перед відправкою
                 var droneCount = telemetry.Drones?.Count ?? 0;
                 var dronesWithCommands = telemetry.Drones?.Count(d => d.IndividualCommands.Any()) ?? 0;
                 var hiveCommandsCount = telemetry.Drones?.Count(d => d.HasHiveCommand) ?? 0;
@@ -346,7 +327,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
                     hiveCommandsCount,
                     telemetry.Timestamp);
 
-                // Логування деталей про дронів з командами
                 if (telemetry.Drones != null && telemetry.Drones.Any())
                 {
                     foreach (var drone in telemetry.Drones.Where(d => d.IndividualCommands.Any()))

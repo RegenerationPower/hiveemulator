@@ -28,7 +28,6 @@ namespace DevOpsProject.HiveMind.Logic.State
 
         private static bool _isTelemetryRunning;
         
-        // Телеметрія для кожного hive окремо
         public class HiveTelemetryData
         {
             public Location? CurrentLocation { get; set; }
@@ -225,7 +224,6 @@ namespace DevOpsProject.HiveMind.Logic.State
             }
         }
 
-        // Методи для роботи з телеметрією конкретного hive
         private static HiveTelemetryData GetHiveTelemetry(string hiveId)
         {
             lock (_hiveTelemetryLock)
@@ -402,19 +400,15 @@ namespace DevOpsProject.HiveMind.Logic.State
         {
             lock (_hiveDroneLock)
             {
-                // Check if drone is already in another hive
                 if (_droneHiveMapping.TryGetValue(droneId, out var existingHiveId))
                 {
                     if (existingHiveId == hiveId)
                     {
-                        // Already in this hive
                         return HiveMembershipResult.AlreadyInTargetHive;
                     }
-                    // Drone is in another hive
                     return HiveMembershipResult.InAnotherHive;
                 }
 
-                // Add drone to hive
                 if (!_hiveDrones.ContainsKey(hiveId))
                 {
                     _hiveDrones[hiveId] = new HashSet<string>();
@@ -517,7 +511,6 @@ namespace DevOpsProject.HiveMind.Logic.State
                 bool removed = _hives.Remove(hiveId);
                 if (removed)
                 {
-                    // Видаляємо телеметрію для цього hive
                     RemoveHiveTelemetry(hiveId);
                 }
                 return removed;

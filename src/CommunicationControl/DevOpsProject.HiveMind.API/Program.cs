@@ -108,12 +108,10 @@ groupBuilder.MapPost("command", async (HiveMindCommand command, [FromServices]IC
     var handler = factory.GetHandler(command);
     await handler.HandleAsync(command);
     
-    // Return HiveMind telemetry as response
     var telemetry = hiveMindService.GetCurrentTelemetry();
     return Results.Ok(telemetry);
 });
 
-// Update Hive telemetry endpoint
 groupBuilder.MapPut("hives/{hiveId}/telemetry", (string hiveId, [FromBody] UpdateHiveTelemetryRequest request, [FromServices] IHiveMindService hiveMindService) =>
 {
     if (string.IsNullOrWhiteSpace(hiveId))
@@ -125,7 +123,6 @@ groupBuilder.MapPut("hives/{hiveId}/telemetry", (string hiveId, [FromBody] Updat
         });
     }
 
-    // Перевіряємо, чи існує hive перед оновленням
     var hiveExists = HiveInMemoryState.GetHive(hiveId) != null;
     if (!hiveExists)
     {
@@ -208,7 +205,6 @@ groupBuilder.MapPost("drones/batch", ([FromBody] BatchCreateDronesRequest reques
     return Results.Ok(response);
 });
 
-// Delete all drones endpoint
 groupBuilder.MapDelete("drones", ([FromServices] IDroneRelayService relayService) =>
 {
     var removedCount = relayService.RemoveAllDrones();
@@ -292,7 +288,6 @@ groupBuilder.MapGet("hives/{hiveId}", (string hiveId, [FromServices] IHiveServic
     return Results.Ok(hive);
 });
 
-// Delete all hives endpoint
 groupBuilder.MapDelete("hives", ([FromServices] IHiveService hiveService) =>
 {
     var deletedCount = hiveService.DeleteAllHives();
@@ -315,7 +310,6 @@ groupBuilder.MapGet("hives/{hiveId}/drones", (string hiveId, [FromServices] IDro
     return Results.Ok(new { hiveId, drones, count = drones.Count });
 });
 
-// Drone communication endpoints within Hive context
 groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/join", (string hiveId, string droneId, [FromBody] DroneJoinRequest request, [FromServices] IDroneCommandService commandService) =>
 {
     var joinRequest = request ?? new DroneJoinRequest { DroneId = droneId };
@@ -448,7 +442,6 @@ groupBuilder.MapPost("drones/connections/batch-degrade", ([FromBody] BatchDegrad
     return Results.Ok(response);
 });
 
-// Mesh command endpoint - send command through mesh network (only for drones in Hive)
 groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/commands/mesh", (string hiveId, string droneId, [FromBody] DroneCommand command, [FromQuery] double? minWeight, [FromServices] IDroneRelayService relayService) =>
 {
     if (command == null)
@@ -456,21 +449,18 @@ groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/commands/mesh", (string hi
         return Results.BadRequest(new { message = "Command cannot be null" });
     }
     
-    // Check if Hive exists
     var hive = HiveInMemoryState.GetHive(hiveId);
     if (hive == null)
     {
         return Results.NotFound(new { message = $"Hive {hiveId} not found." });
     }
     
-    // Check if drone exists
     var drone = HiveInMemoryState.GetDrone(droneId);
     if (drone == null)
     {
         return Results.NotFound(new { message = $"Drone {droneId} not found. Cannot send command to non-existent drone." });
     }
     
-    // Check if drone is in the specified Hive
     var droneHiveId = HiveInMemoryState.GetDroneHive(droneId);
     if (droneHiveId == null || droneHiveId != hiveId)
     {
@@ -483,13 +473,11 @@ groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/commands/mesh", (string hi
         });
     }
     
-    // Set commandPayload to null for commands that don't need it
     if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)
     {
         command.CommandPayload = null;
     }
     
-    // Send command via mesh network
     var meshResponse = relayService.SendCommandViaMesh(droneId, command, minWeight ?? 0.5);
     
     if (!meshResponse.Success)
@@ -500,7 +488,6 @@ groupBuilder.MapPost("hives/{hiveId}/drones/{droneId}/commands/mesh", (string hi
     return Results.Ok(meshResponse);
 });
 
-// Drone command endpoints (direct to drone, not through Hive)
 groupBuilder.MapGet("drones/{droneId}/commands", (string droneId, [FromServices] IDroneCommandService commandService) =>
 {
     var commands = commandService.GetAllCommands(droneId);
@@ -536,14 +523,12 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
         return Results.BadRequest(new { message = "Command cannot be null" });
     }
     
-    // Check if drone exists
     var drone = HiveInMemoryState.GetDrone(droneId);
     if (drone == null)
     {
         return Results.NotFound(new { message = $"Drone {droneId} not found. Cannot send command to non-existent drone." });
     }
     
-    // Check if drone is in a Hive
     var hiveId = HiveInMemoryState.GetDroneHive(droneId);
     if (hiveId != null)
     {
@@ -555,46 +540,37 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
         });
     }
     
-    // Set target drone ID from URL
     command.TargetDroneId = droneId;
     
-    // Auto-generate timestamp if not provided
     if (command.Timestamp == default)
     {
         command.Timestamp = DateTime.UtcNow;
     }
     
-    // Always auto-generate command ID (ignore any provided value)
     command.CommandId = Guid.NewGuid();
     
-    // Set commandPayload to null for commands that don't need it
     if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)
     {
         command.CommandPayload = null;
     }
     else if (command.CommandType == DroneCommandType.Move)
     {
-        // Validate Move command payload
         if (command.CommandPayload == null)
         {
             return Results.BadRequest(new { message = "CommandPayload is required for Move command" });
         }
         
-        // Try to deserialize as MoveDroneCommandPayload
         try
         {
-            // First, check if the payload contains the correct field names
             var payloadJson = System.Text.Json.JsonSerializer.Serialize(command.CommandPayload);
             var payloadDoc = System.Text.Json.JsonDocument.Parse(payloadJson);
             var root = payloadDoc.RootElement;
             
-            // Check for required fields with correct names (case-insensitive but prefer exact match)
             var hasLat = root.TryGetProperty("lat", out var latElement) || root.TryGetProperty("Lat", out latElement);
             var hasLon = root.TryGetProperty("lon", out var lonElement) || root.TryGetProperty("Lon", out lonElement);
             var hasHeight = root.TryGetProperty("height", out var heightElement) || root.TryGetProperty("Height", out heightElement);
             var hasSpeed = root.TryGetProperty("speed", out var speedElement) || root.TryGetProperty("Speed", out speedElement);
             
-            // Check for incorrect field names
             var hasLatitude = root.TryGetProperty("Latitude", out _) || root.TryGetProperty("latitude", out _);
             var hasLongitude = root.TryGetProperty("Longitude", out _) || root.TryGetProperty("longitude", out _);
             var hasAltitude = root.TryGetProperty("Altitude", out _) || root.TryGetProperty("altitude", out _);
@@ -631,14 +607,12 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
                 });
             }
             
-            // Now deserialize with proper field mapping
             var movePayload = System.Text.Json.JsonSerializer.Deserialize<MoveDroneCommandPayload>(payloadJson);
             if (movePayload == null)
             {
                 return Results.BadRequest(new { message = "Invalid Move command payload. Failed to deserialize payload." });
             }
             
-            // Validate all required fields are present and have valid values
             if (movePayload.Lat == 0 && movePayload.Lon == 0)
             {
                 validationErrors.Add("lat and lon cannot both be 0");
@@ -664,7 +638,6 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
                 });
             }
             
-            // Replace with properly typed payload
             command.CommandPayload = movePayload;
         }
         catch (Exception ex)
@@ -684,7 +657,6 @@ groupBuilder.MapPost("drones/{droneId}/commands", (string droneId, [FromBody] Dr
 });
 
 
-// Hive command endpoint - send command to all drones in Hive
 groupBuilder.MapPost("hives/{hiveId}/commands", (string hiveId, [FromBody] DroneCommand command, [FromServices] IDroneCommandService commandService) =>
 {
     if (command == null)
@@ -692,50 +664,41 @@ groupBuilder.MapPost("hives/{hiveId}/commands", (string hiveId, [FromBody] Drone
         return Results.BadRequest(new { message = "Command cannot be null" });
     }
     
-    // Check if Hive exists
     var hive = HiveInMemoryState.GetHive(hiveId);
     if (hive == null)
     {
         return Results.NotFound(new { message = $"Hive {hiveId} not found." });
     }
     
-    // Auto-generate timestamp if not provided
     if (command.Timestamp == default)
     {
         command.Timestamp = DateTime.UtcNow;
     }
     
-    // Always auto-generate command ID (ignore any provided value)
     command.CommandId = Guid.NewGuid();
     
-    // Set commandPayload to null for commands that don't need it
     if (command.CommandType == DroneCommandType.Stop || command.CommandType == DroneCommandType.GetTelemetry)
     {
         command.CommandPayload = null;
     }
     else if (command.CommandType == DroneCommandType.Move)
     {
-        // Validate Move command payload
         if (command.CommandPayload == null)
         {
             return Results.BadRequest(new { message = "CommandPayload is required for Move command" });
         }
         
-        // Try to deserialize as MoveDroneCommandPayload
         try
         {
-            // First, check if the payload contains the correct field names
             var payloadJson = System.Text.Json.JsonSerializer.Serialize(command.CommandPayload);
             var payloadDoc = System.Text.Json.JsonDocument.Parse(payloadJson);
             var root = payloadDoc.RootElement;
             
-            // Check for required fields with correct names (case-insensitive but prefer exact match)
             var hasLat = root.TryGetProperty("lat", out var latElement) || root.TryGetProperty("Lat", out latElement);
             var hasLon = root.TryGetProperty("lon", out var lonElement) || root.TryGetProperty("Lon", out lonElement);
             var hasHeight = root.TryGetProperty("height", out var heightElement) || root.TryGetProperty("Height", out heightElement);
             var hasSpeed = root.TryGetProperty("speed", out var speedElement) || root.TryGetProperty("Speed", out speedElement);
             
-            // Check for incorrect field names
             var hasLatitude = root.TryGetProperty("Latitude", out _) || root.TryGetProperty("latitude", out _);
             var hasLongitude = root.TryGetProperty("Longitude", out _) || root.TryGetProperty("longitude", out _);
             var hasAltitude = root.TryGetProperty("Altitude", out _) || root.TryGetProperty("altitude", out _);
@@ -772,14 +735,12 @@ groupBuilder.MapPost("hives/{hiveId}/commands", (string hiveId, [FromBody] Drone
                 });
             }
             
-            // Now deserialize with proper field mapping
             var movePayload = System.Text.Json.JsonSerializer.Deserialize<MoveDroneCommandPayload>(payloadJson);
             if (movePayload == null)
             {
                 return Results.BadRequest(new { message = "Invalid Move command payload. Failed to deserialize payload." });
             }
             
-            // Validate all required fields are present and have valid values
             if (movePayload.Lat == 0 && movePayload.Lon == 0)
             {
                 validationErrors.Add("lat and lon cannot both be 0");
@@ -805,7 +766,6 @@ groupBuilder.MapPost("hives/{hiveId}/commands", (string hiveId, [FromBody] Drone
                 });
             }
             
-            // Replace with properly typed payload
             command.CommandPayload = movePayload;
         }
         catch (Exception ex)

@@ -39,7 +39,6 @@ namespace DevOpsProject.HiveMind.Logic.Services
 
                 HiveInMemoryState.Destination = destination;
                 HiveInMemoryState.IsMoving = true;
-                // Встановлюємо Height тільки якщо він ще не заданий (0)
                 if (HiveInMemoryState.Height == 0.0f)
                 {
                     HiveInMemoryState.Height = DefaultHeight;
